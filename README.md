@@ -6,10 +6,9 @@ Jogo a modo de ¨Trivia¨que use Inteligência artificial, onde os estudantes ca
 
 ## Divisão de tarefas
 
-1 - Frontend e interface do jogo:
+1 - Frontend:
 
-- Tecnologia:
-- Sugestão de tecnologia: Html, css e javascript. Não vejo necessidade de framework como React.
+- Tecnologia: HTML, CSS, JavaScript, React
 
 2 - Banco de dados, autenticação e salvamento de PDF:
 
@@ -106,3 +105,40 @@ incorreta:
 ```powershell
 python -m examples.avaliar_resposta
 ```
+
+## Frontend (Lucas)
+
+O módulo em `frontend/`, contém as funcionalidades: tradução (PT/ES) da interface, painel lateral com histórico de conversas, seção de ajdua com tutorial de como usar o app, upload de PDF e gravação de áudio pelo microfone.
+
+### Como integrar no backend
+
+O frontend possui duas rotas de API
+
+#### 1. Upload de Arquivo
+- POST `/upload-pdf`
+- Corpo : `file` (o arquivo PDF) e `quantidade` (3).
+- O que espera receber:
+```json
+{
+  "pdfName": "nome_do_arquivo.pdf",
+  "perguntas": [ /* Array seguindo o formato de perguntas do Murilo */ ]
+}
+```
+
+#### 2. Avaliação de Resposta (Texto ou Áudio)
+- POST `/avaliar`
+- O que espera receber: Um objeto JSON seguindo o formato de avaliação do Murilo (`correta`, `nota`, `feedback`, `pontosAcertados`, `pontosFaltantes`, `respostaIdeal`).
+
+### Como executar o frontend
+
+Acesse a pasta `frontend` pelo terminal:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+# Avisos para o backend e banco de ados
+- Restrição: quando o usuário manda áudio, o frontend envia via `FormData` contendo a chave `audio` no formato `.webm`. O serviço de transcrição no backend deve interpretar e transcrever arquivos `.webm`.
+- o histórico de chats atual funciona na memória, quando fizerem o backend e o banco de dados, deve substituir o estado local `sessions` para uma requição GET na inicialização para buscar os chats persistidos no banco de dados
