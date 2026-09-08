@@ -6,9 +6,11 @@ import type { Pergunta, Language } from '../types';
 interface QuestionCardProps {
   pergunta: Pergunta;
   lang: Language;
+  isActive?: boolean;
+  onSelect?: () => void;
 }
 
-export const QuestionCard: FC<QuestionCardProps> = ({ pergunta, lang }) => {
+export const QuestionCard: FC<QuestionCardProps> = ({ pergunta, lang, isActive, onSelect }) => {
   const t = TRANSLATIONS[lang];
 
   return (
@@ -17,16 +19,31 @@ export const QuestionCard: FC<QuestionCardProps> = ({ pergunta, lang }) => {
         <Sparkles className="w-4.5 h-4.5 text-emerald-400" />
       </div>
 
-      <div className="flex-1 bg-white border border-zinc-200/90 rounded-2xl rounded-tl-xs p-4 space-y-3 shadow-2xs">
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`flex-1 text-left bg-white border rounded-2xl rounded-tl-xs p-4 space-y-3 shadow-2xs transition-colors ${
+          isActive
+            ? 'border-emerald-400 ring-1 ring-emerald-300'
+            : 'border-zinc-200/90 hover:border-zinc-300'
+        }`}
+      >
         <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-2">
           <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 tracking-wider uppercase">
             <HelpCircle className="w-4 h-4" />
             <span>{t.questionBadge} #{pergunta.id}</span>
           </div>
 
-          <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 capitalize">
-            {t.difficulty}: {pergunta.dificuldade}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {isActive && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                {t.answeringThis}
+              </span>
+            )}
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 capitalize">
+              {t.difficulty}: {pergunta.dificuldade}
+            </span>
+          </div>
         </div>
 
         <p className="text-zinc-900 text-[15px] font-medium leading-relaxed">
@@ -46,7 +63,7 @@ export const QuestionCard: FC<QuestionCardProps> = ({ pergunta, lang }) => {
             ))}
           </div>
         )}
-      </div>
+      </button>
     </div>
   );
 };
