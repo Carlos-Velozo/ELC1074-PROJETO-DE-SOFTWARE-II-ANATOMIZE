@@ -2,6 +2,19 @@ import type { Pergunta, EvaluationData } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
+// FastAPI's HTTPException returns {"detail": "..."} with a friendly, already
+// translated message (see backend/services/errors.py) — read that instead of
+// dumping the raw response body.
+async function extrairMensagemDeErro(response: Response): Promise<string> {
+  try {
+    const data = await response.json();
+    if (typeof data?.detail === 'string') return data.detail;
+  } catch {
+    // resposta não era JSON, cai no fallback abaixo
+  }
+  return response.statusText || 'Erro desconhecido ao conectar ao backend.';
+}
+
 export const apiService = {
 
   async uploadPdf(file: File, quantidade = 3): Promise<{ perguntas: Pergunta[]; pdfName: string }> {
@@ -15,10 +28,7 @@ export const apiService = {
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Falha na requisição ao backend (${response.status}): ${errorText || response.statusText}`
-      );
+      throw new Error(await extrairMensagemDeErro(response));
     }
 
     return await response.json();
@@ -49,10 +59,7 @@ export const apiService = {
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Falha na avaliação da resposta (${response.status}): ${errorText || response.statusText}`
-      );
+      throw new Error(await extrairMensagemDeErro(response));
     }
 
     return await response.json();
