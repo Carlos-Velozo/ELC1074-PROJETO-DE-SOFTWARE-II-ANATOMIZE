@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, Globe, Sparkles } from 'lucide-react';
+import { Menu, Globe, Sparkles, AlertTriangle, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { EvaluationCard } from './components/EvaluationCard';
 import { QuestionCard } from './components/QuestionCard';
@@ -18,6 +18,7 @@ export function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string>('');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
   const t = TRANSLATIONS[lang];
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
@@ -64,6 +65,7 @@ export function App() {
 
     setIsProcessing(true);
     setProcessingStatus(t.processingAudio);
+    setErrorBanner(null);
 
     try {
       const currentPergunta: Pergunta = activeSession?.currentQuestion || {
@@ -94,11 +96,20 @@ export function App() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido ao conectar ao backend';
       console.error('Erro na avaliação:', err);
-      alert(`Erro no servidor: ${msg}`);
+      setErrorBanner(msg);
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
     }
+  };
+
+  const handleSelectQuestion = (pergunta: Pergunta) => {
+    if (!activeSessionId) return;
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId ? { ...s, currentQuestion: pergunta } : s
+      )
+    );
   };
 
   const handleSendAudio = (audioBlob: Blob, transcribedText?: string) => {
@@ -108,13 +119,12 @@ export function App() {
   const handleUploadPdf = async (file: File) => {
     setIsProcessing(true);
     setProcessingStatus(t.generatingQuestions);
+    setErrorBanner(null);
 
     try {
       const { perguntas, pdfName } = await apiService.uploadPdf(file, 3);
 
       const cleanTitle = pdfName.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
-
-      const newSessionId = activeSessionId || String(Date.now());
 
       const questionMessages: ChatMessage[] = perguntas.map((p, idx) => ({
         id: `q-${Date.now()}-${idx}`,
@@ -124,24 +134,40 @@ export function App() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }));
 
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === newSessionId
-            ? {
-              ...s,
-              pdfName,
-              title: cleanTitle,
-              topic: cleanTitle,
-              currentQuestion: perguntas[0],
-              messages: [...s.messages, ...questionMessages],
-            }
-            : s
-        )
-      );
+      if (activeSessionId) {
+        const sessionId = activeSessionId;
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionId
+              ? {
+                ...s,
+                pdfName,
+                title: cleanTitle,
+                topic: cleanTitle,
+                currentQuestion: perguntas[0],
+                messages: [...s.messages, ...questionMessages],
+              }
+              : s
+          )
+        );
+      } else {
+        const newSessionId = String(Date.now());
+        const newSession: StudySession = {
+          id: newSessionId,
+          title: cleanTitle,
+          topic: cleanTitle,
+          pdfName,
+          currentQuestion: perguntas[0],
+          messages: questionMessages,
+          updatedAt: new Date().toISOString(),
+        };
+        setSessions((prev) => [newSession, ...prev]);
+        setActiveSessionId(newSessionId);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao processar PDF';
       console.error('Falha ao processar PDF:', err);
-      alert(`Falha no processamento do PDF: ${msg}`);
+      setErrorBanner(msg);
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
@@ -206,7 +232,12 @@ export function App() {
                 <div key={msg.id} className="w-full">
                   {msg.type === 'question' && msg.pergunta ? (
                     <div className="flex justify-start pt-1">
-                      <QuestionCard pergunta={msg.pergunta} lang={lang} />
+                      <QuestionCard
+                        pergunta={msg.pergunta}
+                        lang={lang}
+                        isActive={activeSession?.currentQuestion?.id === msg.pergunta.id}
+                        onSelect={() => handleSelectQuestion(msg.pergunta!)}
+                      />
                     </div>
                   ) : msg.sender === 'user' ? (
                     <div className="flex justify-end">
@@ -247,6 +278,25 @@ export function App() {
         </div>
 
         <div className="p-4 pt-2 shrink-0 bg-gradient-to-t from-white via-white to-transparent">
+          {errorBanner && (
+            <div className="max-w-3xl mx-auto mb-2 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+              <p className="flex-1 leading-relaxed">{errorBanner}</p>
+              <button
+                type="button"
+                onClick={() => setErrorBanner(null)}
+                className="text-amber-500 hover:text-amber-700 shrink-0"
+                aria-label="Fechar aviso"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {activeSession?.currentQuestion && (
+            <div className="max-w-3xl mx-auto mb-2 text-[11px] font-medium text-emerald-700 px-1">
+              {t.answeringThis}: {t.questionBadge} #{activeSession.currentQuestion.id}
+            </div>
+          )}
           <ChatInputBar
             onSendMessage={handleSendMessage}
             onSendAudio={handleSendAudio}
