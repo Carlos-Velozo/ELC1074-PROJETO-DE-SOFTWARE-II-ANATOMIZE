@@ -1,16 +1,19 @@
-import { useState } from 'react';
-import { Menu, Globe, Sparkles, AlertTriangle, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Menu, Globe, Sparkles, AlertTriangle, X, LogOut } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { EvaluationCard } from './components/EvaluationCard';
 import { QuestionCard } from './components/QuestionCard';
 import { ChatInputBar } from './components/ChatInputBar';
 import { HelpModal } from './components/HelpModal';
+import { AuthScreen } from './components/AuthScreen';
 import { TRANSLATIONS } from './types';
-import type { StudySession, Language, ChatMessage, Pergunta } from './types';
+import type { StudySession, Language, Pergunta } from './types';
 import { apiService } from './services/api';
+import { useAuth } from './hooks/useAuth';
 
 export function App() {
   const [lang, setLang] = useState<Language>('PT');
+  const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,11 +23,40 @@ export function App() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
+  // Sempre que o usuário logado muda (login, logout ou troca de conta), zera
+  // o estado local e recarrega as sessions do banco do usuário atual — evita
+  // que o histórico de uma conta vaze para outra.
+  const loadedMessagesSessionIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    setSessions([]);
+    setActiveSessionId(null);
+    loadedMessagesSessionIds.current = new Set();
+
+    if (!user) return;
+
+    apiService.listarSessions()
+      .then(setSessions)
+      .catch((err) => console.error('Falha ao carregar sessions:', err));
+  }, [user]);
+
   const t = TRANSLATIONS[lang];
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
   const toggleLanguage = () => {
     setLang((prev) => (prev === 'PT' ? 'ES' : 'PT'));
+  };
+
+  const handleSelectSession = (id: string) => {
+    setActiveSessionId(id);
+
+    if (loadedMessagesSessionIds.current.has(id)) return;
+    loadedMessagesSessionIds.current.add(id);
+
+    apiService.carregarMensagens(id)
+      .then((messages) => {
+        setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, messages } : s)));
+      })
+      .catch((err) => console.error('Falha ao carregar mensagens:', err));
   };
 
   const handleNewStudy = () => {
@@ -40,55 +72,27 @@ export function App() {
     setActiveSessionId(newId);
   };
 
-  const handleSendMessage = async (text: string, audioBlob?: Blob) => {
-    if (!activeSessionId) return;
-
-    const userMessage: ChatMessage = {
-      id: String(Date.now()),
-      sender: 'user',
-      type: 'text',
-      content: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeSessionId
-          ? {
-            ...s,
-            messages: [...s.messages, userMessage],
-            title: s.messages.length === 0 ? text.slice(0, 24) + '...' : s.title,
-          }
-          : s
-      )
-    );
+  const handleSendMessage = async (text: string) => {
+    if (!activeSessionId || !activeSession?.currentQuestion || !user) return;
+    const sessionId = activeSessionId;
+    const questionId = String(activeSession.currentQuestion.id);
 
     setIsProcessing(true);
     setProcessingStatus(t.processingAudio);
     setErrorBanner(null);
 
     try {
-      const currentPergunta: Pergunta = activeSession?.currentQuestion || {
-        id: 1,
-        enunciado: 'Descreva os elementos anatômicos essenciais da estrutura em estudo.',
-        respostaEsperada: 'O músculo braquiocefálico no cão tem sua origem na interseção clavicular e se insere na rafe fibrosa do pescoço.',
-        topicosChave: ['origem', 'inserção'],
-        dificuldade: 'básica',
-      };
+      const userMessage = await apiService.inserirMensagemTexto(sessionId, user.id, text);
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, userMessage] } : s)),
+      );
 
-      const evaluation = await apiService.avaliarResposta(currentPergunta, text, audioBlob);
-
-      const evaluationMessage: ChatMessage = {
-        id: String(Date.now() + 1),
-        sender: 'assistant',
-        type: 'evaluation',
-        evaluation,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
+      const { evaluationId, ...evaluation } = await apiService.avaliarResposta(questionId, text);
+      const evaluationMessage = await apiService.inserirMensagemAvaliacao(sessionId, user.id, evaluationId, evaluation);
 
       setSessions((prev) =>
         prev.map((s) =>
-          s.id === activeSessionId
+          s.id === sessionId
             ? { ...s, messages: [...s.messages, evaluationMessage] }
             : s
         )
@@ -110,10 +114,12 @@ export function App() {
         s.id === activeSessionId ? { ...s, currentQuestion: pergunta } : s
       )
     );
+    apiService.definirPerguntaAtual(activeSessionId, String(pergunta.id))
+      .catch((err) => console.error('Falha ao salvar pergunta atual:', err));
   };
 
-  const handleSendAudio = (audioBlob: Blob, transcribedText?: string) => {
-    handleSendMessage(transcribedText || '', audioBlob);
+  const handleSendAudio = (_audioBlob: Blob, transcribedText?: string) => {
+    handleSendMessage(transcribedText || '');
   };
 
   const handleUploadPdf = async (file: File) => {
@@ -122,48 +128,26 @@ export function App() {
     setErrorBanner(null);
 
     try {
-      const { perguntas, pdfName } = await apiService.uploadPdf(file, 3);
-
+      const { sessionId, perguntas, pdfName } = await apiService.uploadPdf(file, 3);
       const cleanTitle = pdfName.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
 
-      const questionMessages: ChatMessage[] = perguntas.map((p, idx) => ({
-        id: `q-${Date.now()}-${idx}`,
-        sender: 'assistant',
-        type: 'question',
-        pergunta: p,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }));
+      const [questionMessages] = await Promise.all([
+        apiService.inserirMensagensDePerguntas(sessionId, user!.id, perguntas),
+        apiService.definirPerguntaAtual(sessionId, String(perguntas[0].id)),
+      ]);
 
-      if (activeSessionId) {
-        const sessionId = activeSessionId;
-        setSessions((prev) =>
-          prev.map((s) =>
-            s.id === sessionId
-              ? {
-                ...s,
-                pdfName,
-                title: cleanTitle,
-                topic: cleanTitle,
-                currentQuestion: perguntas[0],
-                messages: [...s.messages, ...questionMessages],
-              }
-              : s
-          )
-        );
-      } else {
-        const newSessionId = String(Date.now());
-        const newSession: StudySession = {
-          id: newSessionId,
-          title: cleanTitle,
-          topic: cleanTitle,
-          pdfName,
-          currentQuestion: perguntas[0],
-          messages: questionMessages,
-          updatedAt: new Date().toISOString(),
-        };
-        setSessions((prev) => [newSession, ...prev]);
-        setActiveSessionId(newSessionId);
-      }
+      const newSession: StudySession = {
+        id: sessionId,
+        title: cleanTitle,
+        topic: cleanTitle,
+        pdfName,
+        currentQuestion: perguntas[0],
+        messages: questionMessages,
+        updatedAt: new Date().toISOString(),
+      };
+      loadedMessagesSessionIds.current.add(sessionId);
+      setSessions((prev) => [newSession, ...prev]);
+      setActiveSessionId(sessionId);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao processar PDF';
       console.error('Falha ao processar PDF:', err);
@@ -174,12 +158,24 @@ export function App() {
     }
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-white">
+        <Sparkles className="w-6 h-6 text-emerald-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen lang={lang} />;
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans">
       <Sidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
-        onSelectSession={(id) => setActiveSessionId(id)}
+        onSelectSession={handleSelectSession}
         onNewStudy={handleNewStudy}
         lang={lang}
         searchQuery={searchQuery}
@@ -213,7 +209,7 @@ export function App() {
             </div>
           )}
 
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <button
               onClick={toggleLanguage}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 hover:border-zinc-400 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
@@ -221,6 +217,14 @@ export function App() {
             >
               <Globe className="w-3.5 h-3.5 text-zinc-500" />
               <span>{lang === 'PT' ? 'PT / ES' : 'ES / PT'}</span>
+            </button>
+            <button
+              onClick={() => signOut()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 hover:border-zinc-400 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
+              title={t.logout}
+            >
+              <LogOut className="w-3.5 h-3.5 text-zinc-500" />
+              <span>{t.logout}</span>
             </button>
           </div>
         </header>

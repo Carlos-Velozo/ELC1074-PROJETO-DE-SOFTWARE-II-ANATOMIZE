@@ -139,6 +139,44 @@ npm install
 npm run dev
 ```
 
+## Backend API (FastAPI)
+
+The `backend/` folder wires the existing `src/gerador_perguntas.py` and
+`src/avaliador_respostas.py` modules to the HTTP routes the frontend already
+calls (`/api/upload-pdf` and `/api/avaliar`).
+
+```
+backend/
+  main.py            # FastAPI app, CORS, router registration
+  routers/
+    questions.py      # POST /api/upload-pdf
+    evaluation.py      # POST /api/avaliar
+  services/
+    pdf_reader.py       # extracts text from the uploaded PDF
+```
+
+### Requirements
+
+Same as the question/evaluation modules, plus `GROQ_API_KEY` set in a `.env`
+file at the project root (see `.env.example`).
+
+### Running locally
+
+From the project root, in PowerShell:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m uvicorn backend.main:app --reload --port 8000
+```
+
+The API will be available at `http://localhost:8000/api`, which matches the
+default `VITE_API_URL` used by `frontend/src/services/api.ts`. Run the
+frontend (`npm run dev` inside `frontend/`) at the same time to use the app
+end to end.
+
+This is a development setup only — no deployment (Railway, Render, etc.) is
+configured yet.
+
 # Avisos para o backend e banco de ados
 - Restrição: quando o usuário manda áudio, o frontend envia via `FormData` contendo a chave `audio` no formato `.webm`. O serviço de transcrição no backend deve interpretar e transcrever arquivos `.webm`.
 - o histórico de chats atual funciona na memória, quando fizerem o backend e o banco de dados, deve substituir o estado local `sessions` para uma requição GET na inicialização para buscar os chats persistidos no banco de dados
