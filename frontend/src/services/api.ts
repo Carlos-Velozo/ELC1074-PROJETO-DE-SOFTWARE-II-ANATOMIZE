@@ -55,7 +55,10 @@ function mapearAvaliacao(row: {
 
 export const apiService = {
 
-  async uploadPdf(file: File, quantidade = 3): Promise<{ sessionId: string; perguntas: Pergunta[]; pdfName: string }> {
+  async uploadPdf(
+    file: File,
+    quantidade = 3,
+  ): Promise<{ sessionId: string; title: string; perguntas: Pergunta[]; pdfName: string }> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('quantidade', String(quantidade));
@@ -184,5 +187,17 @@ export const apiService = {
   async definirPerguntaAtual(sessionId: string, questionId: string): Promise<void> {
     const { error } = await supabase.from('sessions').update({ current_question_id: questionId }).eq('id', sessionId);
     if (error) throw error;
+  },
+
+  // devolve o título de fato gravado: o contador "(1)", "(2)" para nomes repetidos
+  // é resolvido no servidor, então pode diferir do que foi digitado
+  async renomearSession(sessionId: string, title: string): Promise<string> {
+    const { data, error } = await supabase.rpc('rename_session', {
+      p_session_id: sessionId,
+      p_new_title: title,
+    });
+    if (error) throw error;
+
+    return data as string;
   },
 };

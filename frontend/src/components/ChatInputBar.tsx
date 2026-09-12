@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import type { FC, KeyboardEvent as ReactKeyboardEvent, ChangeEvent as ReactChangeEvent } from 'react';
-import { Paperclip, Mic, Square, ArrowUp } from 'lucide-react';
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { FileText, Mic, Square, ArrowUp } from 'lucide-react';
 import { TRANSLATIONS } from '../types';
 import type { Language } from '../types';
 
 interface ChatInputBarProps {
   onSendMessage: (text: string) => void;
   onSendAudio: (audioBlob: Blob, transcribedText?: string) => void;
-  onUploadPdf: (file: File) => void;
+  /** nome do PDF já preso à sessão; ele é imutável, por isso é só exibição */
+  pdfName?: string;
+  /** sem pergunta selecionada não há o que responder, então a caixa fica travada */
+  hasSelectedQuestion: boolean;
   lang: Language;
   disabled?: boolean;
 }
@@ -15,7 +18,8 @@ interface ChatInputBarProps {
 export const ChatInputBar: FC<ChatInputBarProps> = ({
   onSendMessage,
   onSendAudio,
-  onUploadPdf,
+  pdfName,
+  hasSelectedQuestion,
   lang,
   disabled = false,
 }) => {
@@ -24,7 +28,8 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const isLocked = disabled || !hasSelectedQuestion;
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -36,7 +41,7 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
   }, []);
 
   const handleSend = () => {
-    if (!text.trim() || disabled) return;
+    if (!text.trim() || isLocked) return;
     onSendMessage(text.trim());
     setText('');
   };
@@ -45,14 +50,6 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
-    }
-  };
-
-  const handleFileChange = (e: ReactChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onUploadPdf(file);
-      e.target.value = '';
     }
   };
 
@@ -109,25 +106,17 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4">
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept="application/pdf"
-        className="hidden"
-      />
+      {pdfName && (
+        <div
+          title={`${t.attachedPdf}: ${pdfName}`}
+          className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-600"
+        >
+          <FileText className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+          <span className="truncate">{pdfName}</span>
+        </div>
+      )}
 
       <div className="relative flex items-center bg-white rounded-xl border border-zinc-300 shadow-xs hover:border-zinc-400 focus-within:border-zinc-500 focus-within:ring-2 focus-within:ring-zinc-100 transition-all p-1.5 pl-3">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isRecording}
-          title={t.uploadPdf}
-          className="p-2 text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 rounded-lg transition-colors shrink-0 disabled:opacity-50"
-        >
-          <Paperclip className="w-5 h-5 -rotate-45" />
-        </button>
-
         {isRecording ? (
           <div className="flex-1 flex items-center gap-3 px-3">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
@@ -141,8 +130,8 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={disabled}
-            placeholder={t.placeholder}
+            disabled={isLocked}
+            placeholder={hasSelectedQuestion ? t.answerPlaceholder : t.selectQuestionFirst}
             className="flex-1 px-3 py-2 bg-transparent text-sm text-zinc-800 placeholder-zinc-400 focus:outline-hidden disabled:opacity-50"
           />
         )}
@@ -151,7 +140,7 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
           <button
             type="button"
             onClick={handleSend}
-            disabled={disabled}
+            disabled={isLocked}
             className="w-10 h-10 rounded-lg bg-[#2e7d32] hover:bg-[#256628] active:bg-[#1d501f] text-white flex items-center justify-center transition-colors shrink-0 shadow-xs cursor-pointer"
           >
             <ArrowUp className="w-5 h-5 stroke-[2.5]" />
@@ -169,9 +158,9 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
           <button
             type="button"
             onClick={startRecording}
-            disabled={disabled}
+            disabled={isLocked}
             className="w-10 h-10 rounded-lg bg-[#2e7d32] hover:bg-[#256628] active:bg-[#1d501f] text-white flex items-center justify-center transition-colors shrink-0 shadow-xs cursor-pointer disabled:opacity-50"
-            title="Gravar resposta em voz alta"
+            title={t.recordAnswer}
           >
             <Mic className="w-5 h-5 stroke-[2]" />
           </button>

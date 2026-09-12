@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Menu, Globe, Sparkles, AlertTriangle, X, LogOut } from 'lucide-react';
+import { Menu, Globe, Sparkles, AlertTriangle, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { EvaluationCard } from './components/EvaluationCard';
 import { QuestionCard } from './components/QuestionCard';
 import { ChatInputBar } from './components/ChatInputBar';
+import { PdfDropzone } from './components/PdfDropzone';
 import { HelpModal } from './components/HelpModal';
 import { AuthScreen } from './components/AuthScreen';
 import { TRANSLATIONS } from './types';
@@ -42,6 +43,9 @@ export function App() {
   const t = TRANSLATIONS[lang];
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
+  // uma sessão só existe a partir de um PDF; sem ele a única ação possível é anexar
+  const hasPdf = Boolean(activeSession?.pdfName);
+
   const toggleLanguage = () => {
     setLang((prev) => (prev === 'PT' ? 'ES' : 'PT'));
   };
@@ -59,20 +63,30 @@ export function App() {
       .catch((err) => console.error('Falha ao carregar mensagens:', err));
   };
 
+  // não cria linha nenhuma: a sessão nasce no banco quando o PDF é enviado
+  // (Edge Function upload-pdf). Antes disso a tela só mostra o dropzone.
   const handleNewStudy = () => {
-    const newId = String(Date.now());
-    const newSession: StudySession = {
-      id: newId,
-      title: lang === 'PT' ? 'Novo Tópico de Anatomia' : 'Nuevo Tema de Anatomía',
-      topic: lang === 'PT' ? 'Estudo Geral' : 'Estudio General',
-      messages: [],
-      updatedAt: new Date().toISOString(),
-    };
-    setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(newId);
+    setActiveSessionId(null);
+    setErrorBanner(null);
+  };
+
+  const handleRenameSession = async (id: string, title: string) => {
+    try {
+      // o servidor resolve colisões acrescentando "(1)", "(2)", então o nome
+      // gravado pode diferir do digitado
+      const tituloGravado = await apiService.renomearSession(id, title);
+      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: tituloGravado } : s)));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao renomear a sessão';
+      console.error('Falha ao renomear sessão:', err);
+      setErrorBanner(msg);
+    }
   };
 
   const handleSendMessage = async (text: string) => {
+    // sem texto não há o que avaliar (o microfone ainda não transcreve e chegava
+    // aqui com string vazia, gravando mensagem em branco e gastando chamada de IA)
+    if (!text.trim()) return;
     if (!activeSessionId || !activeSession?.currentQuestion || !user) return;
     const sessionId = activeSessionId;
     const questionId = String(activeSession.currentQuestion.id);
@@ -128,8 +142,8 @@ export function App() {
     setErrorBanner(null);
 
     try {
-      const { sessionId, perguntas, pdfName } = await apiService.uploadPdf(file, 3);
-      const cleanTitle = pdfName.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+      // title já vem único e sanitizado do servidor — não recalcular aqui
+      const { sessionId, title, perguntas, pdfName } = await apiService.uploadPdf(file, 3);
 
       const [questionMessages] = await Promise.all([
         apiService.inserirMensagensDePerguntas(sessionId, user!.id, perguntas),
@@ -138,8 +152,8 @@ export function App() {
 
       const newSession: StudySession = {
         id: sessionId,
-        title: cleanTitle,
-        topic: cleanTitle,
+        title,
+        topic: title,
         pdfName,
         currentQuestion: perguntas[0],
         messages: questionMessages,
@@ -177,12 +191,15 @@ export function App() {
         activeSessionId={activeSessionId}
         onSelectSession={handleSelectSession}
         onNewStudy={handleNewStudy}
+        onRenameSession={handleRenameSession}
         lang={lang}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         isOpenMobile={isSidebarOpenMobile}
         onCloseMobile={() => setIsSidebarOpenMobile(false)}
         onOpenHelp={() => setIsHelpOpen(true)}
+        user={user}
+        onSignOut={signOut}
       />
 
       <HelpModal 
@@ -197,15 +214,15 @@ export function App() {
             <button
               onClick={() => setIsSidebarOpenMobile(true)}
               className="md:hidden p-2 -ml-2 text-zinc-600 hover:text-zinc-900 rounded-lg hover:bg-zinc-100"
-              aria-label="Abrir menu"
+              aria-label={t.openMenu}
             >
               <Menu className="w-5 h-5" />
             </button>
           </div>
 
           {activeSession && (
-            <div className="text-[11px] font-bold tracking-wider text-zinc-600 uppercase select-none text-center">
-              {t.activeSession}: {activeSession.topic || activeSession.title}
+            <div className="text-[11px] font-bold tracking-wider text-zinc-600 uppercase select-none text-center truncate px-2">
+              {t.activeSession}: {activeSession.title}
             </div>
           )}
 
@@ -213,24 +230,16 @@ export function App() {
             <button
               onClick={toggleLanguage}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 hover:border-zinc-400 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
-              title="Alterar idioma (Português / Espanhol)"
+              title={t.changeLanguage}
             >
               <Globe className="w-3.5 h-3.5 text-zinc-500" />
               <span>{lang === 'PT' ? 'PT / ES' : 'ES / PT'}</span>
-            </button>
-            <button
-              onClick={() => signOut()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 hover:border-zinc-400 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
-              title={t.logout}
-            >
-              <LogOut className="w-3.5 h-3.5 text-zinc-500" />
-              <span>{t.logout}</span>
             </button>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
-          {activeSession && activeSession.messages.length > 0 ? (
+          {activeSession && activeSession.pdfName ? (
             <div className="max-w-3xl mx-auto space-y-6">
               {activeSession.messages.map((msg) => (
                 <div key={msg.id} className="w-full">
@@ -265,19 +274,12 @@ export function App() {
               )}
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4 max-w-lg mx-auto select-none">
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#2e7d32] mb-4 shadow-2xs">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-3.79c-2.35-.37-4.18-2.22-4.55-4.57.94-.13 1.94.1 2.68.65.94.7 1.87 2.05 1.87 3.71v4zm2 0v-4c0-1.66.93-3.01 1.87-3.71.74-.55 1.74-.78 2.68-.65-.37 2.35-2.2 4.2-4.55 4.57V16.5z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold text-zinc-800 mb-2">
-                {t.welcomeTitle}
-              </h2>
-              <p className="text-sm text-zinc-500 leading-relaxed max-w-md">
-                {t.welcomeSubtitle}
-              </p>
-            </div>
+            <PdfDropzone
+              onUploadPdf={handleUploadPdf}
+              lang={lang}
+              isProcessing={isProcessing}
+              processingStatus={processingStatus}
+            />
           )}
         </div>
 
@@ -290,24 +292,28 @@ export function App() {
                 type="button"
                 onClick={() => setErrorBanner(null)}
                 className="text-amber-500 hover:text-amber-700 shrink-0"
-                aria-label="Fechar aviso"
+                aria-label={t.closeWarning}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           )}
-          {activeSession?.currentQuestion && (
+          {hasPdf && activeSession?.currentQuestion && (
             <div className="max-w-3xl mx-auto mb-2 text-[11px] font-medium text-emerald-700 px-1">
               {t.answeringThis}: {t.questionBadge} #{activeSession.currentQuestion.id}
             </div>
           )}
-          <ChatInputBar
-            onSendMessage={handleSendMessage}
-            onSendAudio={handleSendAudio}
-            onUploadPdf={handleUploadPdf}
-            lang={lang}
-            disabled={isProcessing}
-          />
+          {/* sem PDF não há pergunta para responder: a tela mostra só o dropzone */}
+          {hasPdf && (
+            <ChatInputBar
+              onSendMessage={handleSendMessage}
+              onSendAudio={handleSendAudio}
+              pdfName={activeSession?.pdfName}
+              hasSelectedQuestion={Boolean(activeSession?.currentQuestion)}
+              lang={lang}
+              disabled={isProcessing}
+            />
+          )}
         </div>
       </main>
     </div>
