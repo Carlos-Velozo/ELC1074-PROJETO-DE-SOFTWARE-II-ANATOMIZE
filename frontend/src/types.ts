@@ -1,12 +1,24 @@
 export type Language = 'PT' | 'ES';
 
+/** quantidades oferecidas na UI; o servidor aceita 1..20 */
+export const QUANTIDADES_PERGUNTAS = [3, 5, 10] as const;
+
 export interface Pergunta {
   id: number | string;
+  /** posição da pergunta na sessão (1, 2, 3...) — é o número exibido */
+  ordem: number;
   enunciado: string;
   respostaEsperada: string;
   topicosChave: string[];
   dificuldade: 'básica' | 'intermediária' | 'avançada' | string;
 }
+
+// dificuldade é gravada sempre em português (CHECK em questions.dificuldade e
+// enum nos schemas JSON da IA), então só o rótulo exibido muda de idioma
+export const DIFFICULTY_LABELS: Record<Language, Record<string, string>> = {
+  PT: { 'básica': 'básica', 'intermediária': 'intermediária', 'avançada': 'avançada' },
+  ES: { 'básica': 'básica', 'intermediária': 'intermedia', 'avançada': 'avanzada' },
+};
 
 export interface EvaluationData {
   correta: boolean;
@@ -49,6 +61,13 @@ export const TRANSLATIONS = {
     answerPlaceholder: 'Escreva ou grave sua resposta...',
     selectQuestionFirst: 'Selecione uma pergunta acima para responder',
     modelAnswerHeader: 'RESPOSTA IDEAL 10/10',
+    showIdealAnswer: 'Mostrar resposta ideal',
+    hideIdealAnswer: 'Ocultar resposta ideal',
+    answerThis: 'Responder esta',
+    questionCount: 'Perguntas',
+    generateQuestions: 'Gerar perguntas',
+    generateMore: 'Gerar mais perguntas',
+    generatingMore: 'Gerando novas perguntas com IA...',
     audioRecording: 'Gravando resposta...',
     stopRecording: 'Parar e Enviar',
     processingAudio: 'Transcrevendo e avaliando resposta...',
@@ -107,6 +126,13 @@ export const TRANSLATIONS = {
     answerPlaceholder: 'Escribe o graba tu respuesta...',
     selectQuestionFirst: 'Selecciona una pregunta arriba para responder',
     modelAnswerHeader: 'RESPUESTA IDEAL 10/10',
+    showIdealAnswer: 'Mostrar respuesta ideal',
+    hideIdealAnswer: 'Ocultar respuesta ideal',
+    answerThis: 'Responder esta',
+    questionCount: 'Preguntas',
+    generateQuestions: 'Generar preguntas',
+    generateMore: 'Generar más preguntas',
+    generatingMore: 'Generando nuevas preguntas con IA...',
     audioRecording: 'Grabando respuesta...',
     stopRecording: 'Detener y Enviar',
     processingAudio: 'Transcribiendo y evaluando respuesta...',

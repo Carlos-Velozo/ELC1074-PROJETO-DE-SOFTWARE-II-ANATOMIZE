@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react';
 import type { FC, DragEvent as ReactDragEvent, ChangeEvent as ReactChangeEvent } from 'react';
 import { Paperclip, Sparkles } from 'lucide-react';
-import { TRANSLATIONS } from '../types';
+import { TRANSLATIONS, QUANTIDADES_PERGUNTAS } from '../types';
 import type { Language } from '../types';
+import { QuestionCountPicker } from './QuestionCountPicker';
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
 interface PdfDropzoneProps {
-  onUploadPdf: (file: File) => void;
+  onUploadPdf: (file: File, quantidade: number) => void;
   lang: Language;
   isProcessing: boolean;
   processingStatus: string;
@@ -17,6 +18,7 @@ export const PdfDropzone: FC<PdfDropzoneProps> = ({ onUploadPdf, lang, isProcess
   const t = TRANSLATIONS[lang];
   const [isDragging, setIsDragging] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [quantidade, setQuantidade] = useState<number>(QUANTIDADES_PERGUNTAS[0]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // conveniência para o aluno; a validação que vale é a da Edge Function
@@ -31,7 +33,7 @@ export const PdfDropzone: FC<PdfDropzoneProps> = ({ onUploadPdf, lang, isProcess
       return;
     }
     setLocalError(null);
-    onUploadPdf(file);
+    onUploadPdf(file, quantidade);
   };
 
   const handleFileChange = (e: ReactChangeEvent<HTMLInputElement>) => {
@@ -58,7 +60,12 @@ export const PdfDropzone: FC<PdfDropzoneProps> = ({ onUploadPdf, lang, isProcess
       </div>
 
       <h2 className="text-xl font-semibold text-zinc-800 mb-2 select-none">{t.startTitle}</h2>
-      <p className="text-sm text-zinc-500 leading-relaxed max-w-md mb-6 select-none">{t.startSubtitle}</p>
+      <p className="text-sm text-zinc-500 leading-relaxed max-w-md mb-4 select-none">{t.startSubtitle}</p>
+
+      {/* fora do dropzone: um <select> dentro de um <button> seria HTML inválido */}
+      <div className="mb-4">
+        <QuestionCountPicker value={quantidade} onChange={setQuantidade} lang={lang} disabled={isProcessing} />
+      </div>
 
       <input
         type="file"

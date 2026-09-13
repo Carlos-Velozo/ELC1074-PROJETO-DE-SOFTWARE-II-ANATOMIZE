@@ -2,6 +2,7 @@ import { extractText, getDocumentProxy } from 'npm:unpdf@0.12.1';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabaseClient.ts';
 import { gerarPerguntas } from '../_shared/ai-provider.ts';
+import { ehIdioma } from '../_shared/prompts.ts';
 import { ErroIA, traduzirErroIA, jsonError } from '../_shared/errors.ts';
 
 // mesmo orçamento de caracteres usado hoje em backend/routers/questions.py
@@ -52,6 +53,8 @@ Deno.serve(async (req) => {
     const form = await req.formData();
     const file = form.get('file');
     const quantidade = Number(form.get('quantidade') ?? 3);
+    const langRecebido = form.get('lang');
+    const idioma = ehIdioma(langRecebido) ? langRecebido : 'PT';
 
     if (!(file instanceof File) || file.type !== 'application/pdf') {
       return jsonError('O arquivo enviado deve ser um PDF.', 400);
@@ -80,7 +83,7 @@ Deno.serve(async (req) => {
     const limite = MAX_CONTEXT_CHARS_BY_PROVIDER[provider] ?? MAX_CONTEXT_CHARS_BY_PROVIDER.groq;
     const contexto = textoExtraido.slice(0, limite);
 
-    const perguntas = await gerarPerguntas(contexto, quantidade);
+    const perguntas = await gerarPerguntas(contexto, quantidade, { idioma });
 
     // uma sessão sempre nasce de um upload, e o PDF dela é imutável depois disso
     const pdfName = sanitizarNomeArquivo(file.name);
@@ -137,8 +140,10 @@ Deno.serve(async (req) => {
         sessionId: session.id,
         title: session.title,
         pdfName,
-        perguntas: questionRows.map((q) => ({
+        // o RETURNING do insert não garante ordem; a UI numera e escolhe a 1ª por aqui
+        perguntas: [...questionRows].sort((a, b) => a.ordem - b.ordem).map((q) => ({
           id: q.id,
+          ordem: q.ordem,
           enunciado: q.enunciado,
           respostaEsperada: q.resposta_esperada,
           topicosChave: q.topicos_chave,

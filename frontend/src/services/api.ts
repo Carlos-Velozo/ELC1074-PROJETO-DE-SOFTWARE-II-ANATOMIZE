@@ -1,4 +1,4 @@
-import type { ChatMessage, EvaluationData, Pergunta, StudySession } from '../types';
+import type { ChatMessage, EvaluationData, Language, Pergunta, StudySession } from '../types';
 import { supabase } from './supabaseClient';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 
@@ -21,6 +21,7 @@ function formatarHorario(isoString: string): string {
 
 function mapearPergunta(row: {
   id: string;
+  ordem: number;
   enunciado: string;
   resposta_esperada: string;
   topicos_chave: string[];
@@ -28,6 +29,7 @@ function mapearPergunta(row: {
 }): Pergunta {
   return {
     id: row.id,
+    ordem: row.ordem,
     enunciado: row.enunciado,
     respostaEsperada: row.resposta_esperada,
     topicosChave: row.topicos_chave,
@@ -57,11 +59,13 @@ export const apiService = {
 
   async uploadPdf(
     file: File,
-    quantidade = 3,
+    quantidade: number,
+    lang: Language,
   ): Promise<{ sessionId: string; title: string; perguntas: Pergunta[]; pdfName: string }> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('quantidade', String(quantidade));
+    formData.append('lang', lang);
 
     const { data, error } = await supabase.functions.invoke('upload-pdf', { body: formData });
     if (error) throw new Error(await extrairMensagemDeErro(error));
@@ -69,9 +73,23 @@ export const apiService = {
     return data;
   },
 
-  async avaliarResposta(questionId: string, respostaTranscrita: string): Promise<EvaluationData & { evaluationId: string }> {
+  // reaproveita o pdf_text já gravado na sessão; o PDF não é reenviado
+  async gerarMaisPerguntas(sessionId: string, quantidade: number, lang: Language): Promise<Pergunta[]> {
+    const { data, error } = await supabase.functions.invoke('gerar-perguntas', {
+      body: { sessionId, quantidade, lang },
+    });
+    if (error) throw new Error(await extrairMensagemDeErro(error));
+
+    return data.perguntas;
+  },
+
+  async avaliarResposta(
+    questionId: string,
+    respostaTranscrita: string,
+    lang: Language,
+  ): Promise<EvaluationData & { evaluationId: string }> {
     const { data, error } = await supabase.functions.invoke('avaliar', {
-      body: { questionId, respostaTranscrita },
+      body: { questionId, respostaTranscrita, lang },
     });
     if (error) throw new Error(await extrairMensagemDeErro(error));
 

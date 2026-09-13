@@ -5,6 +5,7 @@ import { EvaluationCard } from './components/EvaluationCard';
 import { QuestionCard } from './components/QuestionCard';
 import { ChatInputBar } from './components/ChatInputBar';
 import { PdfDropzone } from './components/PdfDropzone';
+import { GenerateMoreQuestions } from './components/GenerateMoreQuestions';
 import { HelpModal } from './components/HelpModal';
 import { AuthScreen } from './components/AuthScreen';
 import { TRANSLATIONS } from './types';
@@ -12,8 +13,20 @@ import type { StudySession, Language, Pergunta } from './types';
 import { apiService } from './services/api';
 import { useAuth } from './hooks/useAuth';
 
+const LANG_STORAGE_KEY = 'anatomize:lang';
+
+// o idioma também decide em que língua a IA gera perguntas e dá feedback, então
+// vale a pena não perdê-lo a cada reload
+function lerIdiomaSalvo(): Language {
+  try {
+    return localStorage.getItem(LANG_STORAGE_KEY) === 'ES' ? 'ES' : 'PT';
+  } catch {
+    return 'PT';
+  }
+}
+
 export function App() {
-  const [lang, setLang] = useState<Language>('PT');
+  const [lang, setLang] = useState<Language>(lerIdiomaSalvo);
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -47,7 +60,15 @@ export function App() {
   const hasPdf = Boolean(activeSession?.pdfName);
 
   const toggleLanguage = () => {
-    setLang((prev) => (prev === 'PT' ? 'ES' : 'PT'));
+    setLang((prev) => {
+      const proximo = prev === 'PT' ? 'ES' : 'PT';
+      try {
+        localStorage.setItem(LANG_STORAGE_KEY, proximo);
+      } catch {
+        // navegador sem storage (aba anônima, cookies bloqueados): só não persiste
+      }
+      return proximo;
+    });
   };
 
   const handleSelectSession = (id: string) => {
@@ -101,7 +122,7 @@ export function App() {
         prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, userMessage] } : s)),
       );
 
-      const { evaluationId, ...evaluation } = await apiService.avaliarResposta(questionId, text);
+      const { evaluationId, ...evaluation } = await apiService.avaliarResposta(questionId, text, lang);
       const evaluationMessage = await apiService.inserirMensagemAvaliacao(sessionId, user.id, evaluationId, evaluation);
 
       setSessions((prev) =>
@@ -136,14 +157,14 @@ export function App() {
     handleSendMessage(transcribedText || '');
   };
 
-  const handleUploadPdf = async (file: File) => {
+  const handleUploadPdf = async (file: File, quantidade: number) => {
     setIsProcessing(true);
     setProcessingStatus(t.generatingQuestions);
     setErrorBanner(null);
 
     try {
       // title já vem único e sanitizado do servidor — não recalcular aqui
-      const { sessionId, title, perguntas, pdfName } = await apiService.uploadPdf(file, 3);
+      const { sessionId, title, perguntas, pdfName } = await apiService.uploadPdf(file, quantidade, lang);
 
       const [questionMessages] = await Promise.all([
         apiService.inserirMensagensDePerguntas(sessionId, user!.id, perguntas),
@@ -172,6 +193,33 @@ export function App() {
     }
   };
 
+  // gera mais perguntas na sessão atual, continuando a numeração e sem repetir
+  // as que já foram feitas (o servidor manda os enunciados anteriores no prompt)
+  const handleGerarMaisPerguntas = async (quantidade: number) => {
+    if (!activeSessionId || !user) return;
+    const sessionId = activeSessionId;
+
+    setIsProcessing(true);
+    setProcessingStatus(t.generatingMore);
+    setErrorBanner(null);
+
+    try {
+      const perguntas = await apiService.gerarMaisPerguntas(sessionId, quantidade, lang);
+      const questionMessages = await apiService.inserirMensagensDePerguntas(sessionId, user.id, perguntas);
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, ...questionMessages] } : s)),
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao gerar novas perguntas';
+      console.error('Falha ao gerar novas perguntas:', err);
+      setErrorBanner(msg);
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus('');
+    }
+  };
+
   if (isAuthLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-white">
@@ -181,7 +229,7 @@ export function App() {
   }
 
   if (!user) {
-    return <AuthScreen lang={lang} />;
+    return <AuthScreen lang={lang} onToggleLanguage={toggleLanguage} />;
   }
 
   return (
@@ -272,6 +320,12 @@ export function App() {
                   <span>{processingStatus || t.processingAudio}</span>
                 </div>
               )}
+
+              <GenerateMoreQuestions
+                onGenerate={handleGerarMaisPerguntas}
+                lang={lang}
+                disabled={isProcessing}
+              />
             </div>
           ) : (
             <PdfDropzone
@@ -300,7 +354,7 @@ export function App() {
           )}
           {hasPdf && activeSession?.currentQuestion && (
             <div className="max-w-3xl mx-auto mb-2 text-[11px] font-medium text-emerald-700 px-1">
-              {t.answeringThis}: {t.questionBadge} #{activeSession.currentQuestion.id}
+              {t.answeringThis}: {t.questionBadge} #{activeSession.currentQuestion.ordem}
             </div>
           )}
           {/* sem PDF não há pergunta para responder: a tela mostra só o dropzone */}

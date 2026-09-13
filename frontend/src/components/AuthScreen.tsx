@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Globe } from 'lucide-react';
 import { TRANSLATIONS } from '../types';
 import type { Language } from '../types';
 import { supabase } from '../services/supabaseClient';
 
 interface AuthScreenProps {
   lang: Language;
+  onToggleLanguage: () => void;
 }
 
-export function AuthScreen({ lang }: AuthScreenProps) {
+export function AuthScreen({ lang, onToggleLanguage }: AuthScreenProps) {
   const t = TRANSLATIONS[lang];
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
@@ -46,7 +47,18 @@ export function AuthScreen({ lang }: AuthScreenProps) {
   };
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-white text-zinc-900 font-sans px-4">
+    <div className="relative flex h-screen w-screen items-center justify-center bg-white text-zinc-900 font-sans px-4">
+      {/* o idioma escolhido aqui já vale para as perguntas e o feedback da IA */}
+      <button
+        type="button"
+        onClick={onToggleLanguage}
+        title={t.changeLanguage}
+        className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 hover:border-zinc-400 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
+      >
+        <Globe className="w-3.5 h-3.5 text-zinc-500" />
+        <span>{lang === 'PT' ? 'PT / ES' : 'ES / PT'}</span>
+      </button>
+
       <div className="w-full max-w-sm">
         <h1 className="text-xl font-semibold text-zinc-800 mb-6 text-center">
           {mode === 'login' ? t.authLoginTitle : t.authSignupTitle}

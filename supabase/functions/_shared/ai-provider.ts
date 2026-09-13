@@ -1,4 +1,5 @@
 import { montarPrompt, montarPromptAvaliacao, DIFICULDADES } from './prompts.ts';
+import type { Idioma } from './prompts.ts';
 import {
   ESQUEMA_RESPOSTA_GROQ,
   ESQUEMA_AVALIACAO_GROQ,
@@ -101,12 +102,24 @@ async function chamarGemini(prompt: string, schema: object, temperature: number)
 
 // --- geração de perguntas ---
 
-export async function gerarPerguntas(contexto: string, quantidade: number): Promise<Pergunta[]> {
+export interface OpcoesGeracao {
+  idioma: Idioma;
+  /** enunciados já existentes na sessão, para o modelo não repetir */
+  perguntasExistentes?: string[];
+  /** ordem da primeira pergunta gerada; continua a numeração da sessão */
+  ordemInicial?: number;
+}
+
+export async function gerarPerguntas(
+  contexto: string,
+  quantidade: number,
+  { idioma, perguntasExistentes = [], ordemInicial = 1 }: OpcoesGeracao,
+): Promise<Pergunta[]> {
   const usarGemini = provider() === 'gemini';
   let ultimaQuantidade = 0;
 
   for (let tentativa = 1; tentativa <= MAXIMO_TENTATIVAS; tentativa++) {
-    let prompt = montarPrompt(contexto, quantidade);
+    let prompt = montarPrompt(contexto, quantidade, idioma, perguntasExistentes);
     if (tentativa > 1) {
       prompt += `\n\nEsta é a tentativa ${tentativa}. A resposta anterior foi inválida. Gere um JSON válido com exatamente ${quantidade} perguntas.`;
     }
@@ -137,7 +150,7 @@ export async function gerarPerguntas(contexto: string, quantidade: number): Prom
       continue;
     }
 
-    return (perguntas as Omit<Pergunta, 'ordem'>[]).map((p, indice) => ({ ordem: indice + 1, ...p }));
+    return (perguntas as Omit<Pergunta, 'ordem'>[]).map((p, indice) => ({ ordem: ordemInicial + indice, ...p }));
   }
 
   throw new ErroIA(
@@ -166,9 +179,10 @@ const NOTA_MINIMA_CORRETA = 7.0;
 export async function avaliarResposta(
   pergunta: { enunciado: string; respostaEsperada: string; topicosChave: string[] },
   respostaAluno: string,
+  idioma: Idioma,
 ): Promise<Avaliacao> {
   const usarGemini = provider() === 'gemini';
-  const promptBase = montarPromptAvaliacao(pergunta, respostaAluno.trim());
+  const promptBase = montarPromptAvaliacao(pergunta, respostaAluno.trim(), idioma);
 
   for (let tentativa = 1; tentativa <= MAXIMO_TENTATIVAS; tentativa++) {
     let prompt = promptBase;

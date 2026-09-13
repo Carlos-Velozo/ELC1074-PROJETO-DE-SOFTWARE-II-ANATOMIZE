@@ -1,6 +1,7 @@
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabaseClient.ts';
 import { avaliarResposta } from '../_shared/ai-provider.ts';
+import { ehIdioma } from '../_shared/prompts.ts';
 import { ErroIA, traduzirErroIA, jsonError } from '../_shared/errors.ts';
 
 Deno.serve(async (req) => {
@@ -16,7 +17,12 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json();
-    const { questionId, respostaTranscrita } = body as { questionId?: string; respostaTranscrita?: string };
+    const { questionId, respostaTranscrita, lang } = body as {
+      questionId?: string;
+      respostaTranscrita?: string;
+      lang?: string;
+    };
+    const idioma = ehIdioma(lang) ? lang : 'PT';
 
     if (!questionId || !respostaTranscrita) {
       return jsonError("Campos 'questionId' e 'respostaTranscrita' são obrigatórios.", 400);
@@ -37,7 +43,7 @@ Deno.serve(async (req) => {
       topicosChave: question.topicos_chave,
     };
 
-    const avaliacao = await avaliarResposta(pergunta, respostaTranscrita);
+    const avaliacao = await avaliarResposta(pergunta, respostaTranscrita, idioma);
 
     const { data: evaluationRow, error: insertError } = await supabase
       .from('evaluations')
