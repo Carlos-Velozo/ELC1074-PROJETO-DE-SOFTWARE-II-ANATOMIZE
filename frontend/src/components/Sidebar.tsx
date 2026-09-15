@@ -1,19 +1,27 @@
-import type { FC } from 'react';
-import { Plus, Search, HelpCircle, LogOut, X, BookOpen } from 'lucide-react';
+import { useState } from 'react';
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { User } from '@supabase/supabase-js';
+import { Plus, Search, HelpCircle, LogOut, X, BookOpen, Pencil } from 'lucide-react';
 import { TRANSLATIONS } from '../types';
 import type { StudySession, Language } from '../types';
+import { ConfirmDialog } from './ConfirmDialog';
+
+const MAX_TITLE_LENGTH = 120;
 
 interface SidebarProps {
   sessions: StudySession[];
   activeSessionId: string | null;
   onSelectSession: (id: string) => void;
   onNewStudy: () => void;
+  onRenameSession: (id: string, title: string) => void;
   lang: Language;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   onOpenHelp: () => void;
+  user: User | null;
+  onSignOut: () => void;
 }
 
 export const Sidebar: FC<SidebarProps> = ({
@@ -21,18 +29,58 @@ export const Sidebar: FC<SidebarProps> = ({
   activeSessionId,
   onSelectSession,
   onNewStudy,
+  onRenameSession,
   lang,
   searchQuery,
   onSearchChange,
   isOpenMobile,
   onCloseMobile,
   onOpenHelp,
+  user,
+  onSignOut,
 }) => {
   const t = TRANSLATIONS[lang];
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
 
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // display_name é texto livre que o próprio usuário edita, então o e-mail (que
+  // vem do JWT) fica visível logo abaixo — é ele que responde "qual conta é esta".
+  const displayName = user?.user_metadata?.display_name?.trim() || user?.email?.split('@')[0] || '—';
+  const initial = displayName.charAt(0).toUpperCase();
+
+  const startRenaming = (session: StudySession) => {
+    setRenamingId(session.id);
+    setDraftTitle(session.title);
+  };
+
+  const cancelRenaming = () => {
+    setRenamingId(null);
+    setDraftTitle('');
+  };
+
+  const commitRename = (session: StudySession) => {
+    const novoTitulo = draftTitle.trim();
+    cancelRenaming();
+
+    // nada a fazer se ficou vazio ou não mudou — evita ida ao servidor
+    if (!novoTitulo || novoTitulo === session.title) return;
+    onRenameSession(session.id, novoTitulo);
+  };
+
+  const handleRenameKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>, session: StudySession) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename(session);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRenaming();
+    }
+  };
 
   return (
     <>
@@ -73,7 +121,7 @@ export const Sidebar: FC<SidebarProps> = ({
           <button
             onClick={onCloseMobile}
             className="md:hidden p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800"
-            aria-label="Fechar menu"
+            aria-label={t.closeMenu}
           >
             <X className="w-5 h-5" />
           </button>
@@ -114,23 +162,58 @@ export const Sidebar: FC<SidebarProps> = ({
         <div className="flex-1 overflow-y-auto px-2 space-y-0.5 scrollbar-thin scrollbar-thumb-zinc-700">
           {filteredSessions.map((session) => {
             const isActive = session.id === activeSessionId;
+
+            if (renamingId === session.id) {
+              return (
+                <div key={session.id} className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-zinc-800">
+                  <BookOpen className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={draftTitle}
+                    maxLength={MAX_TITLE_LENGTH}
+                    title={t.renameHint}
+                    onChange={(e) => setDraftTitle(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onKeyDown={(e) => handleRenameKeyDown(e, session)}
+                    onBlur={() => commitRename(session)}
+                    className="min-w-0 flex-1 rounded-sm bg-zinc-900 px-2 py-1 text-sm text-white border border-zinc-600 focus:border-emerald-500 focus:outline-hidden"
+                  />
+                </div>
+              );
+            }
+
             return (
-              <button
+              <div
                 key={session.id}
-                onClick={() => {
-                  onSelectSession(session.id);
-                  onCloseMobile();
-                }}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-left transition-colors group ${isActive
+                className={`group flex items-center rounded-lg transition-colors ${isActive
                     ? 'bg-zinc-800 text-white font-medium'
                     : 'text-zinc-300 hover:bg-zinc-800/60 hover:text-white'
                   }`}
               >
-                <span className="shrink-0 text-zinc-400 group-hover:text-emerald-400 transition-colors">
-                  <BookOpen className="w-4 h-4" />
-                </span>
-                <span className="truncate flex-1">{session.title}</span>
-              </button>
+                <button
+                  onClick={() => {
+                    onSelectSession(session.id);
+                    onCloseMobile();
+                  }}
+                  onDoubleClick={() => startRenaming(session)}
+                  className="min-w-0 flex-1 flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
+                >
+                  <span className="shrink-0 text-zinc-400 group-hover:text-emerald-400 transition-colors">
+                    <BookOpen className="w-4 h-4" />
+                  </span>
+                  <span className="truncate flex-1">{session.title}</span>
+                </button>
+
+                <button
+                  onClick={() => startRenaming(session)}
+                  title={t.rename}
+                  aria-label={`${t.rename}: ${session.title}`}
+                  className="shrink-0 mr-1.5 p-1.5 rounded-md text-zinc-400 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-white hover:bg-zinc-700 focus:outline-hidden transition-opacity"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
             );
           })}
 
@@ -150,12 +233,18 @@ export const Sidebar: FC<SidebarProps> = ({
             <span>{t.help}</span>
           </button>
 
+          <div className="flex items-center gap-2.5 px-3 py-2 border-t border-zinc-800 mt-1 pt-3">
+            <div className="w-8 h-8 shrink-0 rounded-full bg-emerald-900/60 border border-emerald-700 flex items-center justify-center text-sm font-semibold text-emerald-300">
+              {initial}
+            </div>
+            <div className="min-w-0 flex-1" title={`${t.loggedInAs}: ${user?.email ?? ''}`}>
+              <p className="truncate text-sm font-medium text-zinc-100">{displayName}</p>
+              <p className="truncate text-xs text-zinc-400">{user?.email}</p>
+            </div>
+          </div>
+
           <button
-            onClick={() => {
-              if (confirm('Deseja realmente sair?')) {
-                onNewStudy();
-              }
-            }}
+            onClick={() => setIsConfirmingLogout(true)}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-colors"
           >
             <LogOut className="w-4 h-4" />
@@ -163,6 +252,19 @@ export const Sidebar: FC<SidebarProps> = ({
           </button>
         </div>
       </aside>
+
+      <ConfirmDialog
+        isOpen={isConfirmingLogout}
+        title={t.confirmLogout}
+        description={t.confirmLogoutDescription}
+        confirmLabel={t.confirm}
+        cancelLabel={t.cancel}
+        onConfirm={() => {
+          setIsConfirmingLogout(false);
+          onSignOut();
+        }}
+        onCancel={() => setIsConfirmingLogout(false)}
+      />
     </>
   );
 };

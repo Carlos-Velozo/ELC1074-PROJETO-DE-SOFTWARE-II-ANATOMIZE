@@ -1,16 +1,33 @@
-import { useState } from 'react';
-import { Menu, Globe, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Menu, Globe, Sparkles, AlertTriangle, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { EvaluationCard } from './components/EvaluationCard';
 import { QuestionCard } from './components/QuestionCard';
 import { ChatInputBar } from './components/ChatInputBar';
+import { PdfDropzone } from './components/PdfDropzone';
+import { GenerateMoreQuestions } from './components/GenerateMoreQuestions';
 import { HelpModal } from './components/HelpModal';
+import { AuthScreen } from './components/AuthScreen';
 import { TRANSLATIONS } from './types';
-import type { StudySession, Language, ChatMessage, Pergunta } from './types';
-import { apiService } from './services/api';
+import type { StudySession, Language, Pergunta } from './types';
+import { apiService, traduzirErroApi } from './services/api';
+import { useAuth } from './hooks/useAuth';
+
+const LANG_STORAGE_KEY = 'anatomize:lang';
+
+// o idioma também decide em que língua a IA gera perguntas e dá feedback, então
+// vale a pena não perdê-lo a cada reload
+function lerIdiomaSalvo(): Language {
+  try {
+    return localStorage.getItem(LANG_STORAGE_KEY) === 'ES' ? 'ES' : 'PT';
+  } catch {
+    return 'PT';
+  }
+}
 
 export function App() {
-  const [lang, setLang] = useState<Language>('PT');
+  const [lang, setLang] = useState<Language>(lerIdiomaSalvo);
+  const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,149 +35,236 @@ export function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string>('');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
+  // Sempre que o usuário logado muda (login, logout ou troca de conta), zera
+  // o estado local e recarrega as sessions do banco do usuário atual — evita
+  // que o histórico de uma conta vaze para outra.
+  //
+  // O contador é o que fecha a corrida: uma resposta que chega depois de uma
+  // troca de conta pertence ao usuário anterior e precisa ser descartada, senão
+  // ela sobrescreve a lista já limpa e o histórico de A aparece na tela de B.
+  const loadedMessagesSessionIds = useRef<Set<string>>(new Set());
+  const carregamentoAtual = useRef(0);
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    // depende do id, não do objeto: onAuthStateChange devolve um user novo a cada
+    // refresh de token, e recarregar tudo nessas horas só aumenta a janela de corrida
+    const carregamento = ++carregamentoAtual.current;
+
+    setSessions([]);
+    setActiveSessionId(null);
+    loadedMessagesSessionIds.current = new Set();
+
+    if (!userId) return;
+
+    apiService.listarSessions()
+      .then((carregadas) => {
+        if (carregamentoAtual.current !== carregamento) return;
+        setSessions(carregadas);
+      })
+      .catch((err) => console.error('Falha ao carregar sessions:', err));
+  }, [userId]);
 
   const t = TRANSLATIONS[lang];
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
+  // uma sessão só existe a partir de um PDF; sem ele a única ação possível é anexar
+  const hasPdf = Boolean(activeSession?.pdfName);
+
   const toggleLanguage = () => {
-    setLang((prev) => (prev === 'PT' ? 'ES' : 'PT'));
+    setLang((prev) => {
+      const proximo = prev === 'PT' ? 'ES' : 'PT';
+      try {
+        localStorage.setItem(LANG_STORAGE_KEY, proximo);
+      } catch {
+        // navegador sem storage (aba anônima, cookies bloqueados): só não persiste
+      }
+      return proximo;
+    });
   };
 
+  const handleSelectSession = (id: string) => {
+    setActiveSessionId(id);
+
+    if (loadedMessagesSessionIds.current.has(id)) return;
+    loadedMessagesSessionIds.current.add(id);
+
+    const carregamento = carregamentoAtual.current;
+    apiService.carregarMensagens(id)
+      .then((messages) => {
+        // mesma guarda do carregamento da lista: descarta resposta de outra conta
+        if (carregamentoAtual.current !== carregamento) return;
+        setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, messages } : s)));
+      })
+      .catch((err) => console.error('Falha ao carregar mensagens:', err));
+  };
+
+  // não cria linha nenhuma: a sessão nasce no banco quando o PDF é enviado
+  // (Edge Function upload-pdf). Antes disso a tela só mostra o dropzone.
   const handleNewStudy = () => {
-    const newId = String(Date.now());
-    const newSession: StudySession = {
-      id: newId,
-      title: lang === 'PT' ? 'Novo Tópico de Anatomia' : 'Nuevo Tema de Anatomía',
-      topic: lang === 'PT' ? 'Estudo Geral' : 'Estudio General',
-      messages: [],
-      updatedAt: new Date().toISOString(),
-    };
-    setSessions((prev) => [newSession, ...prev]);
-    setActiveSessionId(newId);
+    setActiveSessionId(null);
+    setErrorBanner(null);
   };
 
-  const handleSendMessage = async (text: string, audioBlob?: Blob) => {
-    if (!activeSessionId) return;
+  const handleRenameSession = async (id: string, title: string) => {
+    try {
+      // o servidor resolve colisões acrescentando "(1)", "(2)", então o nome
+      // gravado pode diferir do digitado
+      const tituloGravado = await apiService.renomearSession(id, title);
+      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: tituloGravado } : s)));
+    } catch (err: unknown) {
+      const msg = traduzirErroApi(err, lang);
+      console.error('Falha ao renomear sessão:', err);
+      setErrorBanner(msg);
+    }
+  };
 
-    const userMessage: ChatMessage = {
-      id: String(Date.now()),
-      sender: 'user',
-      type: 'text',
-      content: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeSessionId
-          ? {
-            ...s,
-            messages: [...s.messages, userMessage],
-            title: s.messages.length === 0 ? text.slice(0, 24) + '...' : s.title,
-          }
-          : s
-      )
-    );
+  const handleSendMessage = async (text: string) => {
+    // sem texto não há o que avaliar (o microfone ainda não transcreve e chegava
+    // aqui com string vazia, gravando mensagem em branco e gastando chamada de IA)
+    if (!text.trim()) return;
+    if (!activeSessionId || !activeSession?.currentQuestion || !user) return;
+    const sessionId = activeSessionId;
+    const questionId = String(activeSession.currentQuestion.id);
 
     setIsProcessing(true);
     setProcessingStatus(t.processingAudio);
+    setErrorBanner(null);
 
     try {
-      const currentPergunta: Pergunta = activeSession?.currentQuestion || {
-        id: 1,
-        enunciado: 'Descreva os elementos anatômicos essenciais da estrutura em estudo.',
-        respostaEsperada: 'O músculo braquiocefálico no cão tem sua origem na interseção clavicular e se insere na rafe fibrosa do pescoço.',
-        topicosChave: ['origem', 'inserção'],
-        dificuldade: 'básica',
-      };
+      const userMessage = await apiService.inserirMensagemTexto(sessionId, user.id, text);
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, userMessage] } : s)),
+      );
 
-      const evaluation = await apiService.avaliarResposta(currentPergunta, text, audioBlob);
-
-      const evaluationMessage: ChatMessage = {
-        id: String(Date.now() + 1),
-        sender: 'assistant',
-        type: 'evaluation',
-        evaluation,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
+      const { evaluationId, ...evaluation } = await apiService.avaliarResposta(questionId, text, lang);
+      const evaluationMessage = await apiService.inserirMensagemAvaliacao(sessionId, user.id, evaluationId, evaluation);
 
       setSessions((prev) =>
         prev.map((s) =>
-          s.id === activeSessionId
+          s.id === sessionId
             ? { ...s, messages: [...s.messages, evaluationMessage] }
             : s
         )
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido ao conectar ao backend';
+      const msg = traduzirErroApi(err, lang);
       console.error('Erro na avaliação:', err);
-      alert(`Erro no servidor: ${msg}`);
+      setErrorBanner(msg);
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
     }
   };
 
-  const handleSendAudio = (audioBlob: Blob, transcribedText?: string) => {
-    handleSendMessage(transcribedText || '', audioBlob);
+  const handleSelectQuestion = (pergunta: Pergunta) => {
+    if (!activeSessionId) return;
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === activeSessionId ? { ...s, currentQuestion: pergunta } : s
+      )
+    );
+    apiService.definirPerguntaAtual(activeSessionId, String(pergunta.id))
+      .catch((err) => console.error('Falha ao salvar pergunta atual:', err));
   };
 
-  const handleUploadPdf = async (file: File) => {
+  const handleSendAudio = (_audioBlob: Blob, transcribedText?: string) => {
+    handleSendMessage(transcribedText || '');
+  };
+
+  const handleUploadPdf = async (file: File, quantidade: number) => {
     setIsProcessing(true);
     setProcessingStatus(t.generatingQuestions);
+    setErrorBanner(null);
 
     try {
-      const { perguntas, pdfName } = await apiService.uploadPdf(file, 3);
+      // title já vem único e sanitizado do servidor — não recalcular aqui
+      const { sessionId, title, perguntas, pdfName } = await apiService.uploadPdf(file, quantidade, lang);
 
-      const cleanTitle = pdfName.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+      const [questionMessages] = await Promise.all([
+        apiService.inserirMensagensDePerguntas(sessionId, user!.id, perguntas),
+        apiService.definirPerguntaAtual(sessionId, String(perguntas[0].id)),
+      ]);
 
-      const newSessionId = activeSessionId || String(Date.now());
-
-      const questionMessages: ChatMessage[] = perguntas.map((p, idx) => ({
-        id: `q-${Date.now()}-${idx}`,
-        sender: 'assistant',
-        type: 'question',
-        pergunta: p,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }));
-
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === newSessionId
-            ? {
-              ...s,
-              pdfName,
-              title: cleanTitle,
-              topic: cleanTitle,
-              currentQuestion: perguntas[0],
-              messages: [...s.messages, ...questionMessages],
-            }
-            : s
-        )
-      );
+      const newSession: StudySession = {
+        id: sessionId,
+        title,
+        topic: title,
+        pdfName,
+        currentQuestion: perguntas[0],
+        messages: questionMessages,
+        updatedAt: new Date().toISOString(),
+      };
+      loadedMessagesSessionIds.current.add(sessionId);
+      setSessions((prev) => [newSession, ...prev]);
+      setActiveSessionId(sessionId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao processar PDF';
+      const msg = traduzirErroApi(err, lang);
       console.error('Falha ao processar PDF:', err);
-      alert(`Falha no processamento do PDF: ${msg}`);
+      setErrorBanner(msg);
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
     }
   };
+
+  // gera mais perguntas na sessão atual, continuando a numeração e sem repetir
+  // as que já foram feitas (o servidor manda os enunciados anteriores no prompt)
+  const handleGerarMaisPerguntas = async (quantidade: number) => {
+    if (!activeSessionId || !user) return;
+    const sessionId = activeSessionId;
+
+    setIsProcessing(true);
+    setProcessingStatus(t.generatingMore);
+    setErrorBanner(null);
+
+    try {
+      const perguntas = await apiService.gerarMaisPerguntas(sessionId, quantidade, lang);
+      const questionMessages = await apiService.inserirMensagensDePerguntas(sessionId, user.id, perguntas);
+
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, ...questionMessages] } : s)),
+      );
+    } catch (err: unknown) {
+      const msg = traduzirErroApi(err, lang);
+      console.error('Falha ao gerar novas perguntas:', err);
+      setErrorBanner(msg);
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus('');
+    }
+  };
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-white">
+        <Sparkles className="w-6 h-6 text-emerald-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen lang={lang} onToggleLanguage={toggleLanguage} />;
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-zinc-900 font-sans">
       <Sidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
-        onSelectSession={(id) => setActiveSessionId(id)}
+        onSelectSession={handleSelectSession}
         onNewStudy={handleNewStudy}
+        onRenameSession={handleRenameSession}
         lang={lang}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         isOpenMobile={isSidebarOpenMobile}
         onCloseMobile={() => setIsSidebarOpenMobile(false)}
         onOpenHelp={() => setIsHelpOpen(true)}
+        user={user}
+        onSignOut={signOut}
       />
 
       <HelpModal 
@@ -175,23 +279,23 @@ export function App() {
             <button
               onClick={() => setIsSidebarOpenMobile(true)}
               className="md:hidden p-2 -ml-2 text-zinc-600 hover:text-zinc-900 rounded-lg hover:bg-zinc-100"
-              aria-label="Abrir menu"
+              aria-label={t.openMenu}
             >
               <Menu className="w-5 h-5" />
             </button>
           </div>
 
           {activeSession && (
-            <div className="text-[11px] font-bold tracking-wider text-zinc-600 uppercase select-none text-center">
-              {t.activeSession}: {activeSession.topic || activeSession.title}
+            <div className="text-[11px] font-bold tracking-wider text-zinc-600 uppercase select-none text-center truncate px-2">
+              {t.activeSession}: {activeSession.title}
             </div>
           )}
 
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <button
               onClick={toggleLanguage}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 hover:border-zinc-400 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
-              title="Alterar idioma (Português / Espanhol)"
+              title={t.changeLanguage}
             >
               <Globe className="w-3.5 h-3.5 text-zinc-500" />
               <span>{lang === 'PT' ? 'PT / ES' : 'ES / PT'}</span>
@@ -200,13 +304,18 @@ export function App() {
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
-          {activeSession && activeSession.messages.length > 0 ? (
+          {activeSession && activeSession.pdfName ? (
             <div className="max-w-3xl mx-auto space-y-6">
               {activeSession.messages.map((msg) => (
                 <div key={msg.id} className="w-full">
                   {msg.type === 'question' && msg.pergunta ? (
                     <div className="flex justify-start pt-1">
-                      <QuestionCard pergunta={msg.pergunta} lang={lang} />
+                      <QuestionCard
+                        pergunta={msg.pergunta}
+                        lang={lang}
+                        isActive={activeSession?.currentQuestion?.id === msg.pergunta.id}
+                        onSelect={() => handleSelectQuestion(msg.pergunta!)}
+                      />
                     </div>
                   ) : msg.sender === 'user' ? (
                     <div className="flex justify-end">
@@ -228,32 +337,54 @@ export function App() {
                   <span>{processingStatus || t.processingAudio}</span>
                 </div>
               )}
+
+              <GenerateMoreQuestions
+                onGenerate={handleGerarMaisPerguntas}
+                lang={lang}
+                disabled={isProcessing}
+              />
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4 max-w-lg mx-auto select-none">
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#2e7d32] mb-4 shadow-2xs">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-3.79c-2.35-.37-4.18-2.22-4.55-4.57.94-.13 1.94.1 2.68.65.94.7 1.87 2.05 1.87 3.71v4zm2 0v-4c0-1.66.93-3.01 1.87-3.71.74-.55 1.74-.78 2.68-.65-.37 2.35-2.2 4.2-4.55 4.57V16.5z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-semibold text-zinc-800 mb-2">
-                {t.welcomeTitle}
-              </h2>
-              <p className="text-sm text-zinc-500 leading-relaxed max-w-md">
-                {t.welcomeSubtitle}
-              </p>
-            </div>
+            <PdfDropzone
+              onUploadPdf={handleUploadPdf}
+              lang={lang}
+              isProcessing={isProcessing}
+              processingStatus={processingStatus}
+            />
           )}
         </div>
 
         <div className="p-4 pt-2 shrink-0 bg-gradient-to-t from-white via-white to-transparent">
-          <ChatInputBar
-            onSendMessage={handleSendMessage}
-            onSendAudio={handleSendAudio}
-            onUploadPdf={handleUploadPdf}
-            lang={lang}
-            disabled={isProcessing}
-          />
+          {errorBanner && (
+            <div className="max-w-3xl mx-auto mb-2 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+              <p className="flex-1 leading-relaxed">{errorBanner}</p>
+              <button
+                type="button"
+                onClick={() => setErrorBanner(null)}
+                className="text-amber-500 hover:text-amber-700 shrink-0"
+                aria-label={t.closeWarning}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {hasPdf && activeSession?.currentQuestion && (
+            <div className="max-w-3xl mx-auto mb-2 text-[11px] font-medium text-emerald-700 px-1">
+              {t.answeringThis}: {t.questionBadge} #{activeSession.currentQuestion.ordem}
+            </div>
+          )}
+          {/* sem PDF não há pergunta para responder: a tela mostra só o dropzone */}
+          {hasPdf && (
+            <ChatInputBar
+              onSendMessage={handleSendMessage}
+              onSendAudio={handleSendAudio}
+              pdfName={activeSession?.pdfName}
+              hasSelectedQuestion={Boolean(activeSession?.currentQuestion)}
+              lang={lang}
+              disabled={isProcessing}
+            />
+          )}
         </div>
       </main>
     </div>

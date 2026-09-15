@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { FC } from 'react';
-import { CheckCircle2, AlertCircle, GraduationCap, Check, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, GraduationCap, Check, X, Eye, EyeOff } from 'lucide-react';
 import { TRANSLATIONS } from '../types';
 import type { EvaluationData, Language } from '../types';
 
@@ -11,6 +12,8 @@ interface EvaluationCardProps {
 export const EvaluationCard: FC<EvaluationCardProps> = ({ evaluation, lang }) => {
   const t = TRANSLATIONS[lang];
   const isAprovado = evaluation.nota >= 7.0;
+  // entregar a resposta pronta junto com a nota tira o valor de tentar de novo
+  const [mostrarRespostaIdeal, setMostrarRespostaIdeal] = useState(false);
 
   return (
     <div className="flex items-start gap-3.5 max-w-2xl w-full">
@@ -55,7 +58,7 @@ export const EvaluationCard: FC<EvaluationCardProps> = ({ evaluation, lang }) =>
                 </span>
                 <ul className="list-disc list-inside space-y-0.5 text-zinc-700">
                   {evaluation.pontosAcertados.map((ponto, i) => (
-                    <li key={i} className="truncate">{ponto}</li>
+                    <li key={i}>{ponto}</li>
                   ))}
                 </ul>
               </div>
@@ -69,7 +72,7 @@ export const EvaluationCard: FC<EvaluationCardProps> = ({ evaluation, lang }) =>
                 </span>
                 <ul className="list-disc list-inside space-y-0.5 text-zinc-700">
                   {evaluation.pontosFaltantes.map((ponto, i) => (
-                    <li key={i} className="truncate">{ponto}</li>
+                    <li key={i}>{ponto}</li>
                   ))}
                 </ul>
               </div>
@@ -78,15 +81,36 @@ export const EvaluationCard: FC<EvaluationCardProps> = ({ evaluation, lang }) =>
         )}
 
         {evaluation.respostaIdeal && (
-          <div className="bg-[#fcfdfa] border-l-4 border-[#2e7d32] border-y border-r border-zinc-200/80 rounded-r-lg p-4 space-y-2 shadow-2xs">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#2e7d32] uppercase tracking-wider">
-              <GraduationCap className="w-4 h-4" />
-              <span>{t.modelAnswerHeader}</span>
+          mostrarRespostaIdeal ? (
+            <div className="bg-[#fcfdfa] border-l-4 border-[#2e7d32] border-y border-r border-zinc-200/80 rounded-r-lg p-4 space-y-2 shadow-2xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#2e7d32] uppercase tracking-wider">
+                  <GraduationCap className="w-4 h-4" />
+                  <span>{t.modelAnswerHeader}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarRespostaIdeal(false)}
+                  className="flex items-center gap-1 text-[11px] font-medium text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer shrink-0"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>{t.hideIdealAnswer}</span>
+                </button>
+              </div>
+              <p className="text-zinc-700 text-sm leading-relaxed">
+                {evaluation.respostaIdeal}
+              </p>
             </div>
-            <p className="text-zinc-700 text-sm leading-relaxed">
-              {evaluation.respostaIdeal}
-            </p>
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMostrarRespostaIdeal(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-xs font-medium text-zinc-600 hover:border-[#2e7d32] hover:text-[#2e7d32] hover:bg-emerald-50/60 transition-colors cursor-pointer"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>{t.showIdealAnswer}</span>
+            </button>
+          )
         )}
       </div>
     </div>
