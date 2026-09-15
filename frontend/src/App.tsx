@@ -10,7 +10,7 @@ import { HelpModal } from './components/HelpModal';
 import { AuthScreen } from './components/AuthScreen';
 import { TRANSLATIONS } from './types';
 import type { StudySession, Language, Pergunta } from './types';
-import { apiService } from './services/api';
+import { apiService, traduzirErroApi } from './services/api';
 import { useAuth } from './hooks/useAuth';
 
 const LANG_STORAGE_KEY = 'anatomize:lang';
@@ -40,18 +40,32 @@ export function App() {
   // Sempre que o usuário logado muda (login, logout ou troca de conta), zera
   // o estado local e recarrega as sessions do banco do usuário atual — evita
   // que o histórico de uma conta vaze para outra.
+  //
+  // O contador é o que fecha a corrida: uma resposta que chega depois de uma
+  // troca de conta pertence ao usuário anterior e precisa ser descartada, senão
+  // ela sobrescreve a lista já limpa e o histórico de A aparece na tela de B.
   const loadedMessagesSessionIds = useRef<Set<string>>(new Set());
+  const carregamentoAtual = useRef(0);
+  const userId = user?.id ?? null;
+
   useEffect(() => {
+    // depende do id, não do objeto: onAuthStateChange devolve um user novo a cada
+    // refresh de token, e recarregar tudo nessas horas só aumenta a janela de corrida
+    const carregamento = ++carregamentoAtual.current;
+
     setSessions([]);
     setActiveSessionId(null);
     loadedMessagesSessionIds.current = new Set();
 
-    if (!user) return;
+    if (!userId) return;
 
     apiService.listarSessions()
-      .then(setSessions)
+      .then((carregadas) => {
+        if (carregamentoAtual.current !== carregamento) return;
+        setSessions(carregadas);
+      })
       .catch((err) => console.error('Falha ao carregar sessions:', err));
-  }, [user]);
+  }, [userId]);
 
   const t = TRANSLATIONS[lang];
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
@@ -77,8 +91,11 @@ export function App() {
     if (loadedMessagesSessionIds.current.has(id)) return;
     loadedMessagesSessionIds.current.add(id);
 
+    const carregamento = carregamentoAtual.current;
     apiService.carregarMensagens(id)
       .then((messages) => {
+        // mesma guarda do carregamento da lista: descarta resposta de outra conta
+        if (carregamentoAtual.current !== carregamento) return;
         setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, messages } : s)));
       })
       .catch((err) => console.error('Falha ao carregar mensagens:', err));
@@ -98,7 +115,7 @@ export function App() {
       const tituloGravado = await apiService.renomearSession(id, title);
       setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: tituloGravado } : s)));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao renomear a sessão';
+      const msg = traduzirErroApi(err, lang);
       console.error('Falha ao renomear sessão:', err);
       setErrorBanner(msg);
     }
@@ -133,7 +150,7 @@ export function App() {
         )
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido ao conectar ao backend';
+      const msg = traduzirErroApi(err, lang);
       console.error('Erro na avaliação:', err);
       setErrorBanner(msg);
     } finally {
@@ -184,7 +201,7 @@ export function App() {
       setSessions((prev) => [newSession, ...prev]);
       setActiveSessionId(sessionId);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao processar PDF';
+      const msg = traduzirErroApi(err, lang);
       console.error('Falha ao processar PDF:', err);
       setErrorBanner(msg);
     } finally {
@@ -211,7 +228,7 @@ export function App() {
         prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, ...questionMessages] } : s)),
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Erro ao gerar novas perguntas';
+      const msg = traduzirErroApi(err, lang);
       console.error('Falha ao gerar novas perguntas:', err);
       setErrorBanner(msg);
     } finally {
