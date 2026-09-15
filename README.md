@@ -179,4 +179,4 @@ configured yet.
 
 # Avisos para o backend e banco de ados
 - Restrição: quando o usuário manda áudio, o frontend envia via `FormData` contendo a chave `audio` no formato `.webm`. O serviço de transcrição no backend deve interpretar e transcrever arquivos `.webm`.
-- o histórico de chats atual funciona na memória, quando fizerem o backend e o banco de dados, deve substituir o estado local `sessions` para uma requição GET na inicialização para buscar os chats persistidos no banco de dados
+- o histórico de chats atual funciona na memória, quando fizerem o backend e o banco de dados, deve substituir o estado local `sessions` para uma requição GET na inicialização para buscar os chats persistidos no banco de dados 
