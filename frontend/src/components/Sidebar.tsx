@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import { Plus, Search, HelpCircle, LogOut, X, BookOpen, Pencil } from 'lucide-react';
 import { TRANSLATIONS } from '../types';
 import type { StudySession, Language } from '../types';
+import { ConfirmDialog } from './ConfirmDialog';
 
 const MAX_TITLE_LENGTH = 120;
 
@@ -41,6 +42,7 @@ export const Sidebar: FC<SidebarProps> = ({
   const t = TRANSLATIONS[lang];
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
+  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
 
   const filteredSessions = sessions.filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -242,11 +244,7 @@ export const Sidebar: FC<SidebarProps> = ({
           </div>
 
           <button
-            onClick={() => {
-              if (confirm(t.confirmLogout)) {
-                onSignOut();
-              }
-            }}
+            onClick={() => setIsConfirmingLogout(true)}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition-colors"
           >
             <LogOut className="w-4 h-4" />
@@ -254,6 +252,19 @@ export const Sidebar: FC<SidebarProps> = ({
           </button>
         </div>
       </aside>
+
+      <ConfirmDialog
+        isOpen={isConfirmingLogout}
+        title={t.confirmLogout}
+        description={t.confirmLogoutDescription}
+        confirmLabel={t.confirm}
+        cancelLabel={t.cancel}
+        onConfirm={() => {
+          setIsConfirmingLogout(false);
+          onSignOut();
+        }}
+        onCancel={() => setIsConfirmingLogout(false)}
+      />
     </>
   );
 };

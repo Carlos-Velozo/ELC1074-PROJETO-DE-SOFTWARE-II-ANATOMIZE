@@ -2,6 +2,7 @@ import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabaseClient.ts';
 import { gerarPerguntas } from '../_shared/ai-provider.ts';
 import { ehIdioma } from '../_shared/prompts.ts';
+import { consumirCotaIA } from '../_shared/rate-limit.ts';
 import { ErroIA, traduzirErroIA, jsonError } from '../_shared/errors.ts';
 
 // mesmo orçamento de caracteres de upload-pdf
@@ -20,9 +21,13 @@ Deno.serve(async (req) => {
     const supabase = createUserClient(req);
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
-      return jsonError('Usuário não autenticado.', 401);
+      return jsonError('NAO_AUTENTICADO', 401);
     }
     const userId = userData.user.id;
+
+    if (!(await consumirCotaIA(supabase, 'gerar_perguntas'))) {
+      return jsonError('COTA_EXCEDIDA', 429);
+    }
 
     const body = await req.json();
     const { sessionId, quantidade: quantidadeRecebida, lang } = body as {
@@ -34,10 +39,10 @@ Deno.serve(async (req) => {
     const idioma = ehIdioma(lang) ? lang : 'PT';
 
     if (!sessionId) {
-      return jsonError("O campo 'sessionId' é obrigatório.", 400);
+      return jsonError('CAMPOS_OBRIGATORIOS', 400);
     }
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 20) {
-      return jsonError('A quantidade de perguntas deve estar entre 1 e 20.', 400);
+      return jsonError('QUANTIDADE_INVALIDA', 400);
     }
 
     // a RLS "sessions: dono" garante que só a própria sessão é encontrada
@@ -47,12 +52,12 @@ Deno.serve(async (req) => {
       .eq('id', sessionId)
       .single();
     if (sessionError || !session) {
-      return jsonError('Sessão não encontrada.', 404);
+      return jsonError('SESSAO_NAO_ENCONTRADA', 404);
     }
 
     const textoExtraido = (session.pdf_text ?? '').trim();
     if (!textoExtraido) {
-      return jsonError('Esta sessão não tem um PDF processado.', 422);
+      return jsonError('SESSAO_SEM_PDF', 422);
     }
 
     // enunciados já feitos entram no prompt para o modelo não repetir, e a maior
@@ -109,8 +114,8 @@ Deno.serve(async (req) => {
     console.error('gerar-perguntas falhou:', erro);
     if (erro instanceof ErroIA) {
       const amigavel = traduzirErroIA(erro);
-      return jsonError(amigavel.mensagem, amigavel.status);
+      return jsonError(amigavel.codigo, amigavel.status);
     }
-    return jsonError('Falha inesperada ao gerar novas perguntas.', 500);
+    return jsonError('FALHA_INESPERADA', 500);
   }
 });

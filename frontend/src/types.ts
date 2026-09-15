@@ -49,6 +49,45 @@ export interface StudySession {
   updatedAt: string;
 }
 
+// As Edge Functions devolvem { code, error }: o code é estável e traduzido aqui,
+// o error é a frase em português usada só como fallback.
+export const ERROR_MESSAGES: Record<Language, Record<string, string>> = {
+  PT: {
+    NAO_AUTENTICADO: 'Sua sessão expirou. Entre novamente.',
+    CAMPOS_OBRIGATORIOS: 'Faltam informações na requisição. Recarregue a página e tente de novo.',
+    PDF_INVALIDO: 'O arquivo enviado não é um PDF válido.',
+    PDF_MUITO_GRANDE: 'O PDF deve ter no máximo 20 MB.',
+    PDF_SEM_TEXTO: 'Não foi possível extrair texto deste PDF. Ele pode ser só de imagens digitalizadas.',
+    QUANTIDADE_INVALIDA: 'A quantidade de perguntas é inválida.',
+    SESSAO_NAO_ENCONTRADA: 'Sessão não encontrada.',
+    SESSAO_SEM_PDF: 'Esta sessão não tem um PDF processado.',
+    PERGUNTA_NAO_ENCONTRADA: 'Pergunta não encontrada.',
+    COTA_EXCEDIDA: 'Você fez muitas solicitações à IA em pouco tempo. Aguarde alguns minutos e tente novamente.',
+    IA_SOBRECARREGADA: 'A IA está recebendo muitas solicitações agora. Aguarde um minuto e tente novamente.',
+    IA_MODELO_INDISPONIVEL: 'O modelo de IA configurado não está disponível no momento. Avise a equipe.',
+    IA_AUTENTICACAO: 'Falha de autenticação com o serviço de IA. Avise a equipe para verificar a chave de API.',
+    IA_INDISPONIVEL: 'O serviço de IA está indisponível no momento. Tente novamente em instantes.',
+    FALHA_INESPERADA: 'Não foi possível processar a solicitação agora. Tente novamente em instantes.',
+  },
+  ES: {
+    NAO_AUTENTICADO: 'Tu sesión expiró. Vuelve a entrar.',
+    CAMPOS_OBRIGATORIOS: 'Faltan datos en la solicitud. Recarga la página e inténtalo de nuevo.',
+    PDF_INVALIDO: 'El archivo enviado no es un PDF válido.',
+    PDF_MUITO_GRANDE: 'El PDF debe tener como máximo 20 MB.',
+    PDF_SEM_TEXTO: 'No se pudo extraer texto de este PDF. Puede contener solo imágenes escaneadas.',
+    QUANTIDADE_INVALIDA: 'La cantidad de preguntas no es válida.',
+    SESSAO_NAO_ENCONTRADA: 'Sesión no encontrada.',
+    SESSAO_SEM_PDF: 'Esta sesión no tiene un PDF procesado.',
+    PERGUNTA_NAO_ENCONTRADA: 'Pregunta no encontrada.',
+    COTA_EXCEDIDA: 'Hiciste muchas solicitudes a la IA en poco tiempo. Espera unos minutos e inténtalo de nuevo.',
+    IA_SOBRECARREGADA: 'La IA está recibiendo muchas solicitudes ahora. Espera un minuto e inténtalo de nuevo.',
+    IA_MODELO_INDISPONIVEL: 'El modelo de IA configurado no está disponible en este momento. Avisa al equipo.',
+    IA_AUTENTICACAO: 'Fallo de autenticación con el servicio de IA. Avisa al equipo para revisar la clave de API.',
+    IA_INDISPONIVEL: 'El servicio de IA no está disponible en este momento. Inténtalo en unos instantes.',
+    FALHA_INESPERADA: 'No se pudo procesar la solicitud ahora. Inténtalo en unos instantes.',
+  },
+};
+
 export const TRANSLATIONS = {
   PT: {
     appName: 'Anatomize',
@@ -83,6 +122,9 @@ export const TRANSLATIONS = {
     rename: 'Renomear',
     renameHint: 'Enter para salvar, Esc para cancelar',
     confirmLogout: 'Deseja realmente sair?',
+    confirmLogoutDescription: 'Você voltará para a tela de login. Suas sessões de estudo ficam salvas.',
+    confirm: 'Sair',
+    cancel: 'Cancelar',
     loggedInAs: 'Conectado como',
     openMenu: 'Abrir menu',
     closeMenu: 'Fechar menu',
@@ -148,6 +190,9 @@ export const TRANSLATIONS = {
     rename: 'Renombrar',
     renameHint: 'Enter para guardar, Esc para cancelar',
     confirmLogout: '¿Realmente deseas salir?',
+    confirmLogoutDescription: 'Volverás a la pantalla de inicio de sesión. Tus sesiones de estudio quedan guardadas.',
+    confirm: 'Salir',
+    cancel: 'Cancelar',
     loggedInAs: 'Conectado como',
     openMenu: 'Abrir menú',
     closeMenu: 'Cerrar menú',

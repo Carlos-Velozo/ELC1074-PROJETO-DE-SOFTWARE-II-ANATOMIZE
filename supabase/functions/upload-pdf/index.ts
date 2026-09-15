@@ -3,6 +3,7 @@ import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabaseClient.ts';
 import { gerarPerguntas } from '../_shared/ai-provider.ts';
 import { ehIdioma } from '../_shared/prompts.ts';
+import { consumirCotaIA } from '../_shared/rate-limit.ts';
 import { ErroIA, traduzirErroIA, jsonError } from '../_shared/errors.ts';
 
 // mesmo orçamento de caracteres usado hoje em backend/routers/questions.py
@@ -40,14 +41,18 @@ Deno.serve(async (req) => {
     const supabase = createUserClient(req);
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
-      return jsonError('Usuário não autenticado.', 401);
+      return jsonError('NAO_AUTENTICADO', 401);
     }
     const userId = userData.user.id;
+
+    if (!(await consumirCotaIA(supabase, 'upload_pdf'))) {
+      return jsonError('COTA_EXCEDIDA', 429);
+    }
 
     // corta antes de req.formData(), que carregaria o corpo inteiro em memória
     const tamanhoDeclarado = Number(req.headers.get('content-length') ?? 0);
     if (tamanhoDeclarado > MAX_PDF_BYTES) {
-      return jsonError('O PDF deve ter no máximo 20 MB.', 413);
+      return jsonError('PDF_MUITO_GRANDE', 413);
     }
 
     const form = await req.formData();
@@ -57,18 +62,18 @@ Deno.serve(async (req) => {
     const idioma = ehIdioma(langRecebido) ? langRecebido : 'PT';
 
     if (!(file instanceof File) || file.type !== 'application/pdf') {
-      return jsonError('O arquivo enviado deve ser um PDF.', 400);
+      return jsonError('PDF_INVALIDO', 400);
     }
     if (file.size > MAX_PDF_BYTES) {
-      return jsonError('O PDF deve ter no máximo 20 MB.', 413);
+      return jsonError('PDF_MUITO_GRANDE', 413);
     }
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 20) {
-      return jsonError('A quantidade de perguntas deve estar entre 1 e 20.', 400);
+      return jsonError('QUANTIDADE_INVALIDA', 400);
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!pareceMesmoPdf(bytes)) {
-      return jsonError('O arquivo enviado deve ser um PDF.', 400);
+      return jsonError('PDF_INVALIDO', 400);
     }
 
     const pdf = await getDocumentProxy(bytes);
@@ -76,7 +81,7 @@ Deno.serve(async (req) => {
     const textoExtraido = text.trim();
 
     if (!textoExtraido) {
-      return jsonError('Não foi possível extrair texto do PDF.', 422);
+      return jsonError('PDF_SEM_TEXTO', 422);
     }
 
     const provider = (Deno.env.get('AI_PROVIDER') || 'groq').toLowerCase();
@@ -156,8 +161,8 @@ Deno.serve(async (req) => {
     console.error('upload-pdf falhou:', erro);
     if (erro instanceof ErroIA) {
       const amigavel = traduzirErroIA(erro);
-      return jsonError(amigavel.mensagem, amigavel.status);
+      return jsonError(amigavel.codigo, amigavel.status);
     }
-    return jsonError('Falha inesperada ao processar o PDF.', 500);
+    return jsonError('FALHA_INESPERADA', 500);
   }
 });

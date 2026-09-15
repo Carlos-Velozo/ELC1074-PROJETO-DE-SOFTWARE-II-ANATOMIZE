@@ -1,18 +1,46 @@
+import { ERROR_MESSAGES } from '../types';
 import type { ChatMessage, EvaluationData, Language, Pergunta, StudySession } from '../types';
 import { supabase } from './supabaseClient';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 
-async function extrairMensagemDeErro(error: unknown): Promise<string> {
+/** erro vindo de uma Edge Function, carregando o código estável do servidor */
+export class ErroApi extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'ErroApi';
+    this.code = code;
+  }
+}
+
+async function extrairErro(error: unknown): Promise<ErroApi> {
   if (error instanceof FunctionsHttpError) {
     try {
       const body = await error.context.json();
-      if (typeof body?.error === 'string') return body.error;
+      if (typeof body?.error === 'string' || typeof body?.code === 'string') {
+        return new ErroApi(body.error ?? body.code, body.code);
+      }
     } catch {
       // corpo não era JSON, cai no fallback abaixo
     }
   }
-  if (error instanceof Error) return error.message;
-  return 'Erro desconhecido ao conectar ao backend.';
+  if (error instanceof Error) return new ErroApi(error.message);
+  return new ErroApi('Erro desconhecido ao conectar ao backend.');
+}
+
+/**
+ * Texto a exibir para o aluno. O servidor manda um código estável (ele não sabe
+ * o idioma escolhido); a frase vem daqui. Erros que não têm código — os do
+ * PostgREST, por exemplo — caem na própria mensagem.
+ */
+export function traduzirErroApi(erro: unknown, lang: Language): string {
+  if (erro instanceof ErroApi && erro.code) {
+    const traduzido = ERROR_MESSAGES[lang][erro.code];
+    if (traduzido) return traduzido;
+  }
+  if (erro instanceof Error && erro.message) return erro.message;
+
+  return ERROR_MESSAGES[lang].FALHA_INESPERADA;
 }
 
 function formatarHorario(isoString: string): string {
@@ -68,7 +96,7 @@ export const apiService = {
     formData.append('lang', lang);
 
     const { data, error } = await supabase.functions.invoke('upload-pdf', { body: formData });
-    if (error) throw new Error(await extrairMensagemDeErro(error));
+    if (error) throw await extrairErro(error);
 
     return data;
   },
@@ -78,7 +106,7 @@ export const apiService = {
     const { data, error } = await supabase.functions.invoke('gerar-perguntas', {
       body: { sessionId, quantidade, lang },
     });
-    if (error) throw new Error(await extrairMensagemDeErro(error));
+    if (error) throw await extrairErro(error);
 
     return data.perguntas;
   },
@@ -91,7 +119,7 @@ export const apiService = {
     const { data, error } = await supabase.functions.invoke('avaliar', {
       body: { questionId, respostaTranscrita, lang },
     });
-    if (error) throw new Error(await extrairMensagemDeErro(error));
+    if (error) throw await extrairErro(error);
 
     return data;
   },
