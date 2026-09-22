@@ -84,6 +84,20 @@ function mapearAvaliacao(row: {
 }
 
 export const apiService = {
+  async transcreverAudio(file: Blob): Promise<string> {
+    const formData = new FormData();
+    const extensao = file.type.includes('mp4') ? 'm4a' : file.type.includes('ogg') ? 'ogg' : 'webm';
+    formData.append('file', file, `resposta.${extensao}`);
+
+    const { data, error } = await supabase.functions.invoke('transcribe-audio', { body: formData });
+    if (error) throw await extrairErro(error);
+
+    if (typeof data?.transcription !== 'string' || !data.transcription.trim()) {
+      throw new ErroApi('A transcrição retornou vazia. Tente gravar novamente.');
+    }
+
+    return data.transcription.trim();
+  },
 
   async uploadPdf(
     file: File,
