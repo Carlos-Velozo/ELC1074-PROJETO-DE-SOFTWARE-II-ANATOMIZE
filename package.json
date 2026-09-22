@@ -1,0 +1,10 @@
+{
+  "devDependencies": {
+    "supabase": "^2.117.0"
+  },
+  "scripts": {
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:functions": "supabase functions serve --env-file supabase/.env.local"
+  }
+}

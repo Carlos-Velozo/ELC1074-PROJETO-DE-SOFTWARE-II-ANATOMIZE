@@ -59,7 +59,8 @@ export function App() {
 
     if (!userId) return;
 
-    apiService.listarSessions()
+    apiService
+      .listarSessions()
       .then((carregadas) => {
         if (carregamentoAtual.current !== carregamento) return;
         setSessions(carregadas);
@@ -92,7 +93,8 @@ export function App() {
     loadedMessagesSessionIds.current.add(id);
 
     const carregamento = carregamentoAtual.current;
-    apiService.carregarMensagens(id)
+    apiService
+      .carregarMensagens(id)
       .then((messages) => {
         // mesma guarda do carregamento da lista: descarta resposta de outra conta
         if (carregamentoAtual.current !== carregamento) return;
@@ -143,11 +145,7 @@ export function App() {
       const evaluationMessage = await apiService.inserirMensagemAvaliacao(sessionId, user.id, evaluationId, evaluation);
 
       setSessions((prev) =>
-        prev.map((s) =>
-          s.id === sessionId
-            ? { ...s, messages: [...s.messages, evaluationMessage] }
-            : s
-        )
+        prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, evaluationMessage] } : s)),
       );
     } catch (err: unknown) {
       const msg = traduzirErroApi(err, lang);
@@ -161,17 +159,19 @@ export function App() {
 
   const handleSelectQuestion = (pergunta: Pergunta) => {
     if (!activeSessionId) return;
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeSessionId ? { ...s, currentQuestion: pergunta } : s
-      )
-    );
-    apiService.definirPerguntaAtual(activeSessionId, String(pergunta.id))
+    setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? { ...s, currentQuestion: pergunta } : s)));
+    apiService
+      .definirPerguntaAtual(activeSessionId, String(pergunta.id))
       .catch((err) => console.error('Falha ao salvar pergunta atual:', err));
   };
 
-  const handleSendAudio = (_audioBlob: Blob, transcribedText?: string) => {
-    handleSendMessage(transcribedText || '');
+  const handleTranscribeAudio = async (audioBlob: Blob) => {
+    setErrorBanner(null);
+    return apiService.transcreverAudio(audioBlob);
+  };
+
+  const handleTranscriptionError = (error: unknown) => {
+    setErrorBanner(traduzirErroApi(error, lang));
   };
 
   const handleUploadPdf = async (file: File, quantidade: number) => {
@@ -267,11 +267,7 @@ export function App() {
         onSignOut={signOut}
       />
 
-      <HelpModal 
-        isOpen={isHelpOpen} 
-        onClose={() => setIsHelpOpen(false)} 
-        lang={lang} 
-      />
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} lang={lang} />
 
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-white relative">
         <header className="h-14 px-4 md:px-8 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-white z-10">
@@ -338,11 +334,7 @@ export function App() {
                 </div>
               )}
 
-              <GenerateMoreQuestions
-                onGenerate={handleGerarMaisPerguntas}
-                lang={lang}
-                disabled={isProcessing}
-              />
+              <GenerateMoreQuestions onGenerate={handleGerarMaisPerguntas} lang={lang} disabled={isProcessing} />
             </div>
           ) : (
             <PdfDropzone
@@ -378,7 +370,8 @@ export function App() {
           {hasPdf && (
             <ChatInputBar
               onSendMessage={handleSendMessage}
-              onSendAudio={handleSendAudio}
+              onTranscribeAudio={handleTranscribeAudio}
+              onTranscriptionError={handleTranscriptionError}
               pdfName={activeSession?.pdfName}
               hasSelectedQuestion={Boolean(activeSession?.currentQuestion)}
               lang={lang}

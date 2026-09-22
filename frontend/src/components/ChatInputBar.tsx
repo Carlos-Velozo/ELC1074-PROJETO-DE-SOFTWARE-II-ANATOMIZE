@@ -6,7 +6,8 @@ import type { Language } from '../types';
 
 interface ChatInputBarProps {
   onSendMessage: (text: string) => void;
-  onSendAudio: (audioBlob: Blob, transcribedText?: string) => void;
+  onTranscribeAudio: (audioBlob: Blob) => Promise<string>;
+  onTranscriptionError: (error: unknown) => void;
   /** nome do PDF já preso à sessão; ele é imutável, por isso é só exibição */
   pdfName?: string;
   /** sem pergunta selecionada não há o que responder, então a caixa fica travada */
@@ -17,7 +18,8 @@ interface ChatInputBarProps {
 
 export const ChatInputBar: FC<ChatInputBarProps> = ({
   onSendMessage,
-  onSendAudio,
+  onTranscribeAudio,
+  onTranscriptionError,
   pdfName,
   hasSelectedQuestion,
   lang,
@@ -26,6 +28,7 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
   const t = TRANSLATIONS[lang];
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
   const isLocked = disabled || !hasSelectedQuestion;
@@ -33,6 +36,7 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -56,7 +60,11 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const formatos = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+      const mimeType = formatos.find((formato) => MediaRecorder.isTypeSupported(formato));
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -66,10 +74,25 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
         }
       };
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: mediaRecorder.mimeType || mimeType || 'audio/webm',
+        });
         stream.getTracks().forEach((track) => track.stop());
-        onSendAudio(audioBlob);
+        setIsTranscribing(true);
+        try {
+          const transcription = await onTranscribeAudio(audioBlob);
+          const textoTranscrito = transcription.trim();
+          if (textoTranscrito) {
+            setText(textoTranscrito);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }
+        } catch (error) {
+          console.error('Erro ao transcrever áudio:', error);
+          onTranscriptionError(error);
+        } finally {
+          setIsTranscribing(false);
+        }
       };
 
       mediaRecorder.start();
@@ -126,17 +149,18 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
           </div>
         ) : (
           <input
+            ref={inputRef}
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isLocked}
+            disabled={isLocked || isTranscribing}
             placeholder={hasSelectedQuestion ? t.answerPlaceholder : t.selectQuestionFirst}
             className="flex-1 px-3 py-2 bg-transparent text-sm text-zinc-800 placeholder-zinc-400 focus:outline-hidden disabled:opacity-50"
           />
         )}
 
-        {text.trim() && !isRecording ? (
+        {text.trim() && !isRecording && !isTranscribing ? (
           <button
             type="button"
             onClick={handleSend}
@@ -154,6 +178,8 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
           >
             <Square className="w-4 h-4 fill-current" />
           </button>
+        ) : isTranscribing ? (
+          <span className="px-3 text-xs text-zinc-500">{t.processingAudio}</span>
         ) : (
           <button
             type="button"
