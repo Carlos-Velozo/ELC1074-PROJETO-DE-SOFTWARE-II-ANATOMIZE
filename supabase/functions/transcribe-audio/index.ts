@@ -2,16 +2,10 @@ import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabaseClient.ts';
 import { consumirCotaIA } from '../_shared/rate-limit.ts';
 import { ErroIA, traduzirErroIA, jsonError } from '../_shared/errors.ts';
+import { ehIdioma, montarPromptTranscricao } from '../_shared/prompts.ts';
+import type { Idioma } from '../_shared/prompts.ts';
 
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
-const PROMPT = `Ouça este áudio e forneça uma resposta em JSON com esta exata estrutura:
-{
-  "transcription": "A transcrição completa e exata do áudio",
-  "summary": "Um resumo conciso do que a pessoa está comunicando",
-  "context": "A interpretação da mensagem, significado e intenção por trás das palavras"
-}
-
-Responda APENAS com o JSON, sem explicações adicionais. Tudo em português.`;
 
 function bytesParaBase64(bytes: Uint8Array): string {
   const tamanhoDoBloco = 0x8000;
@@ -59,7 +53,7 @@ function parseResposta(texto: string): { transcription: string; summary: string;
   return { transcription: texto, summary: '', context: '' };
 }
 
-async function transcrever(bytes: Uint8Array, mimeType: string) {
+async function transcrever(bytes: Uint8Array, mimeType: string, idioma?: Idioma) {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) throw new ErroIA('GEMINI_API_KEY não configurada nos secrets da function.');
 
@@ -72,7 +66,10 @@ async function transcrever(bytes: Uint8Array, mimeType: string) {
       body: JSON.stringify({
         contents: [
           {
-            parts: [{ inline_data: { mime_type: mimeType, data: bytesParaBase64(bytes) } }, { text: PROMPT }],
+            parts: [
+              { inline_data: { mime_type: mimeType, data: bytesParaBase64(bytes) } },
+              { text: montarPromptTranscricao(idioma) },
+            ],
           },
         ],
       }),
@@ -111,11 +108,16 @@ Deno.serve(async (req) => {
     const form = await req.formData();
     const file = form.get('file');
     if (!(file instanceof File)) return jsonError('CAMPOS_OBRIGATORIOS', 400);
-    if (file.size === 0 || file.size > MAX_AUDIO_BYTES) return jsonError('FALHA_INESPERADA', 413);
+    if (file.size === 0 || file.size > MAX_AUDIO_BYTES) return jsonError('AUDIO_INVALIDO', 413);
+
+    // sem idioma válido o áudio ainda é transcrito, só que sem dica do que esperar
+    const lang = form.get('lang');
+    const idioma = ehIdioma(lang) ? lang : undefined;
+    if (!idioma) console.warn(`transcribe-audio: lang ausente ou inválido (${String(lang)})`);
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const mimeType = normalizarMimeType(file);
-    const resultado = await transcrever(bytes, mimeType);
+    const resultado = await transcrever(bytes, mimeType, idioma);
 
     return new Response(JSON.stringify(resultado), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

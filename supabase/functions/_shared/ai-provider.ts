@@ -1,4 +1,10 @@
-import { montarPrompt, montarPromptAvaliacao, DIFICULDADES } from './prompts.ts';
+import {
+  montarPrompt,
+  montarPromptAvaliacao,
+  sufixoTentativaAvaliacao,
+  sufixoTentativaGeracao,
+  DIFICULDADES,
+} from './prompts.ts';
 import type { Idioma } from './prompts.ts';
 import {
   ESQUEMA_RESPOSTA_GROQ,
@@ -121,7 +127,7 @@ export async function gerarPerguntas(
   for (let tentativa = 1; tentativa <= MAXIMO_TENTATIVAS; tentativa++) {
     let prompt = montarPrompt(contexto, quantidade, idioma, perguntasExistentes);
     if (tentativa > 1) {
-      prompt += `\n\nEsta é a tentativa ${tentativa}. A resposta anterior foi inválida. Gere um JSON válido com exatamente ${quantidade} perguntas.`;
+      prompt += sufixoTentativaGeracao(tentativa, quantidade, idioma);
     }
 
     let textoResposta: string;
@@ -187,7 +193,7 @@ export async function avaliarResposta(
   for (let tentativa = 1; tentativa <= MAXIMO_TENTATIVAS; tentativa++) {
     let prompt = promptBase;
     if (tentativa > 1) {
-      prompt += `\n\nEsta é a tentativa ${tentativa}. A resposta anterior não formou um JSON válido. Responda novamente respeitando o esquema.`;
+      prompt += sufixoTentativaAvaliacao(tentativa, idioma);
     }
 
     let textoResposta: string;

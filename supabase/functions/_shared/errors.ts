@@ -29,6 +29,7 @@ export type CodigoErro =
   | 'IA_MODELO_INDISPONIVEL'
   | 'IA_AUTENTICACAO'
   | 'IA_INDISPONIVEL'
+  | 'AUDIO_INVALIDO'
   | 'FALHA_INESPERADA';
 
 const MENSAGENS_PT: Record<CodigoErro, string> = {
@@ -46,6 +47,7 @@ const MENSAGENS_PT: Record<CodigoErro, string> = {
   IA_MODELO_INDISPONIVEL: 'O modelo de IA configurado não está disponível no momento. Avise a equipe.',
   IA_AUTENTICACAO: 'Falha de autenticação com o serviço de IA. Avise a equipe para verificar a chave de API.',
   IA_INDISPONIVEL: 'O serviço de IA está indisponível no momento. Tente novamente em instantes.',
+  AUDIO_INVALIDO: 'O áudio está vazio ou excede o tamanho máximo permitido.',
   FALHA_INESPERADA: 'Não foi possível processar a solicitação agora. Tente novamente em instantes.',
 };
 

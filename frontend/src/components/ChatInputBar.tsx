@@ -104,7 +104,7 @@ export const ChatInputBar: FC<ChatInputBarProps> = ({
       }, 1000);
     } catch (err) {
       console.error('Erro ao acessar microfone:', err);
-      alert('Não foi possível acessar o microfone. Verifique as permissões no navegador.');
+      alert(t.micPermissionDenied);
       setIsRecording(false);
     }
   };

@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import { CheckCircle2, AlertCircle, GraduationCap, Check, X, Eye, EyeOff } from 'lucide-react';
 import { TRANSLATIONS } from '../types';
 import type { EvaluationData, Language } from '../types';
+import { formatarNota } from '../services/idioma';
 
 interface EvaluationCardProps {
   evaluation: EvaluationData;
@@ -40,7 +41,7 @@ export const EvaluationCard: FC<EvaluationCardProps> = ({ evaluation, lang }) =>
             ) : (
               <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
             )}
-            <span>{evaluation.nota.toFixed(1)} / 10</span>
+            <span>{formatarNota(evaluation.nota, lang)} / 10</span>
           </div>
         </div>
 
