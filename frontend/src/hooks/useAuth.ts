@@ -7,10 +7,34 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    const isPreview = typeof window !== 'undefined' && window.location.search.includes('preview=summary');
+    if (isPreview) {
+      setSession({
+        user: {
+          id: 'preview-user-id',
+          email: 'lucas.xavier@anatomize.ufsm.br',
+          user_metadata: { display_name: 'Lucas Xavier' },
+          app_metadata: {},
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+        },
+        access_token: 'mock-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        refresh_token: 'mock-refresh-token',
+      } as Session);
       setIsLoading(false);
-    });
+      return;
+    }
+
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        setSession(data.session);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        setIsLoading(false);
+      });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);

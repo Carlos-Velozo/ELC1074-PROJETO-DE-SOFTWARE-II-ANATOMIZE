@@ -1,7 +1,7 @@
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabaseClient.ts';
 import { avaliarResposta } from '../_shared/ai-provider.ts';
-import { ehIdioma } from '../_shared/prompts.ts';
+import { idiomaDaRequisicao } from '../_shared/prompts.ts';
 import { consumirCotaIA } from '../_shared/rate-limit.ts';
 import { ErroIA, traduzirErroIA, jsonError } from '../_shared/errors.ts';
 
@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
       respostaTranscrita?: string;
       lang?: string;
     };
-    const idioma = ehIdioma(lang) ? lang : 'PT';
+    const idioma = idiomaDaRequisicao(lang, 'avaliar');
 
     if (!questionId || !respostaTranscrita) {
       return jsonError('CAMPOS_OBRIGATORIOS', 400);

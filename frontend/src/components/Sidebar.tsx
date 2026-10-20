@@ -114,7 +114,7 @@ export const Sidebar: FC<SidebarProps> = ({
               </svg>
             </div>
             <span className="text-xl font-semibold tracking-tight text-white">
-              Anatomize
+              {t.appName}
             </span>
           </div>
 
