@@ -39,8 +39,10 @@ const MOCK_PREVIEW_SESSION: StudySession = {
       pergunta: {
         id: 'p-1',
         ordem: 1,
-        enunciado: 'Explique a divisão do esqueleto humano em axial e apendicular, citando as funções primárias de cada divisão e os ossos que as compõem.',
-        respostaEsperada: 'O esqueleto axial compreende crânio, coluna vertebral, costelas e esterno, voltado à proteção de órgãos vitais. O esqueleto apendicular é composto pelos membros e cíngulos escapular e pélvico, voltado à locomoção.',
+        enunciado:
+          'Explique a divisão do esqueleto humano em axial e apendicular, citando as funções primárias de cada divisão e os ossos que as compõem.',
+        respostaEsperada:
+          'O esqueleto axial compreende crânio, coluna vertebral, costelas e esterno, voltado à proteção de órgãos vitais. O esqueleto apendicular é composto pelos membros e cíngulos escapular e pélvico, voltado à locomoção.',
         topicosChave: ['Esqueleto axial', 'Esqueleto apendicular', 'Proteção de órgãos', 'Locomoção e sustentação'],
         dificuldade: 'básica',
       },
@@ -50,7 +52,8 @@ const MOCK_PREVIEW_SESSION: StudySession = {
       id: 'msg-a1',
       sender: 'user',
       type: 'text',
-      content: 'O esqueleto axial é composto pelo crânio, coluna e caixa torácica e protege os órgãos vitais. O apendicular compreende os membros superiores e inferiores para locomoção.',
+      content:
+        'O esqueleto axial é composto pelo crânio, coluna e caixa torácica e protege os órgãos vitais. O apendicular compreende os membros superiores e inferiores para locomoção.',
       timestamp: '14:04',
     },
     {
@@ -60,10 +63,18 @@ const MOCK_PREVIEW_SESSION: StudySession = {
       evaluation: {
         correta: true,
         nota: 8.5,
-        feedback: 'Excelente resposta! Você definiu corretamente as duas divisões e suas funções principais de proteção e locomoção.',
-        pontosAcertados: ['Divisão correta do esqueleto axial', 'Identificação dos membros no esqueleto apendicular', 'Associação correta com proteção de órgãos vitais'],
-        pontosFaltantes: ['Faltou citar o cíngulo escapular (clavícula e escápula) e o cíngulo pélvico como parte do apendicular'],
-        respostaIdeal: 'O esqueleto axial é formado pelo crânio, coluna vertebral, costelas e esterno, com função de sustentar o eixo do corpo e proteger o SNC e vísceras torácicas. O apendicular inclui os membros e seus cíngulos de fixação (escapular e pélvico), possibilitando a mobilidade.',
+        feedback:
+          'Excelente resposta! Você definiu corretamente as duas divisões e suas funções principais de proteção e locomoção.',
+        pontosAcertados: [
+          'Divisão correta do esqueleto axial',
+          'Identificação dos membros no esqueleto apendicular',
+          'Associação correta com proteção de órgãos vitais',
+        ],
+        pontosFaltantes: [
+          'Faltou citar o cíngulo escapular (clavícula e escápula) e o cíngulo pélvico como parte do apendicular',
+        ],
+        respostaIdeal:
+          'O esqueleto axial é formado pelo crânio, coluna vertebral, costelas e esterno, com função de sustentar o eixo do corpo e proteger o SNC e vísceras torácicas. O apendicular inclui os membros e seus cíngulos de fixação (escapular e pélvico), possibilitando a mobilidade.',
       },
       timestamp: '14:04',
     },
@@ -74,9 +85,16 @@ const MOCK_PREVIEW_SESSION: StudySession = {
       pergunta: {
         id: 'p-2',
         ordem: 2,
-        enunciado: 'Descreva a arquitetura de um osso longo típico, diferenciando a diáfise das epífises e mencionando o papel do periósteo.',
-        respostaEsperada: 'A diáfise é o corpo cilíndrico formado por osso compacto contendo o canal medular. As epífises são as extremidades alargadas com osso esponjoso e cartilagem articular. O periósteo reveste externamente o osso, atuando na nutrição e osteogênese.',
-        topicosChave: ['Diáfise e canal medular', 'Epífises proximal e distal', 'Periósteo e osteogênese', 'Cartilagem articular'],
+        enunciado:
+          'Descreva a arquitetura de um osso longo típico, diferenciando a diáfise das epífises e mencionando o papel do periósteo.',
+        respostaEsperada:
+          'A diáfise é o corpo cilíndrico formado por osso compacto contendo o canal medular. As epífises são as extremidades alargadas com osso esponjoso e cartilagem articular. O periósteo reveste externamente o osso, atuando na nutrição e osteogênese.',
+        topicosChave: [
+          'Diáfise e canal medular',
+          'Epífises proximal e distal',
+          'Periósteo e osteogênese',
+          'Cartilagem articular',
+        ],
         dificuldade: 'intermediária',
       },
       timestamp: '14:06',
@@ -85,7 +103,8 @@ const MOCK_PREVIEW_SESSION: StudySession = {
       id: 'msg-a2',
       sender: 'user',
       type: 'text',
-      content: 'A diáfise é a haste central do osso e as epífises são as pontas que formam as articulações. O periósteo é uma membrana que envolve o osso por fora.',
+      content:
+        'A diáfise é a haste central do osso e as epífises são as pontas que formam as articulações. O periósteo é uma membrana que envolve o osso por fora.',
       timestamp: '14:08',
     },
     {
@@ -96,9 +115,17 @@ const MOCK_PREVIEW_SESSION: StudySession = {
         correta: true,
         nota: 8.0,
         feedback: 'Boa resposta. Você diferenciou as regiões anatômicas principais do osso longo com clareza.',
-        pontosAcertados: ['Localização da diáfise como eixo central', 'Identificação das epífises nas extremidades articulares', 'Menção ao periósteo como revestimento fibroso'],
-        pontosFaltantes: ['Importância do periósteo no crescimento em espessura e vascularização óssea', 'Menção ao canal medular com medula óssea'],
-        respostaIdeal: 'A diáfise é a haste tubular formada por tecido ósseo compacto que aloja a cavidade medular. As epífises são as extremidades dilatadas compostas por osso esponjoso trabecular e revestidas por cartilagem articular. O periósteo é a membrana conjuntiva vascularizada essencial para o crescimento aposicional e fixação de tendões.',
+        pontosAcertados: [
+          'Localização da diáfise como eixo central',
+          'Identificação das epífises nas extremidades articulares',
+          'Menção ao periósteo como revestimento fibroso',
+        ],
+        pontosFaltantes: [
+          'Importância do periósteo no crescimento em espessura e vascularização óssea',
+          'Menção ao canal medular com medula óssea',
+        ],
+        respostaIdeal:
+          'A diáfise é a haste tubular formada por tecido ósseo compacto que aloja a cavidade medular. As epífises são as extremidades dilatadas compostas por osso esponjoso trabecular e revestidas por cartilagem articular. O periósteo é a membrana conjuntiva vascularizada essencial para o crescimento aposicional e fixação de tendões.',
       },
       timestamp: '14:08',
     },
@@ -110,8 +137,14 @@ const MOCK_PREVIEW_SESSION: StudySession = {
         id: 'p-3',
         ordem: 3,
         enunciado: 'Como as articulações são classificadas estruturalmente e funcionalmente? Dê exemplos de cada uma.',
-        respostaEsperada: 'Estruturalmente: fibrosas (suturas cranianas, imóveis/sinartroses), cartilagíneas (sínfise púbica, semimóveis/anfiartroses) e sinoviais (ombro, joelho, livres/diartroses).',
-        topicosChave: ['Articulações fibrosas (sinartroses)', 'Articulações cartilagíneas (anfiartroses)', 'Articulações sinoviais (diartroses)', 'Líquido sinovial'],
+        respostaEsperada:
+          'Estruturalmente: fibrosas (suturas cranianas, imóveis/sinartroses), cartilagíneas (sínfise púbica, semimóveis/anfiartroses) e sinoviais (ombro, joelho, livres/diartroses).',
+        topicosChave: [
+          'Articulações fibrosas (sinartroses)',
+          'Articulações cartilagíneas (anfiartroses)',
+          'Articulações sinoviais (diartroses)',
+          'Líquido sinovial',
+        ],
         dificuldade: 'avançada',
       },
       timestamp: '14:10',
@@ -120,7 +153,8 @@ const MOCK_PREVIEW_SESSION: StudySession = {
       id: 'msg-a3',
       sender: 'user',
       type: 'text',
-      content: 'São classificadas em fibrosas, cartilaginosas e sinoviais. As sinoviais têm líquido sinovial e se mexem bastante, como o joelho. As fibrosas quase não mexem.',
+      content:
+        'São classificadas em fibrosas, cartilaginosas e sinoviais. As sinoviais têm líquido sinovial e se mexem bastante, como o joelho. As fibrosas quase não mexem.',
       timestamp: '14:12',
     },
     {
@@ -130,10 +164,19 @@ const MOCK_PREVIEW_SESSION: StudySession = {
       evaluation: {
         correta: true,
         nota: 7.5,
-        feedback: 'Resposta satisfatória. Você citou as três classes estruturais e deu o exemplo clássico da articulação sinovial.',
-        pontosAcertados: ['Classificação em fibrosas, cartilagíneas e sinoviais', 'Reconhecimento da ampla mobilidade das sinoviais e presença de líquido sinovial', 'Exemplo do joelho'],
-        pontosFaltantes: ['Terminologia funcional (sinartrose, anfiartrose e diartrose)', 'Exemplos anatômicos de articulações cartilagíneas (ex.: sínfises e discos intervertebrais)'],
-        respostaIdeal: 'Estruturalmente dividem-se em: Fibrosas (unidas por colágeno, ex.: suturas do crânio, funcionalmente sinartroses); Cartilagíneas (unidas por cartilagem, ex.: sínfise púbica e discos intervertebrais, funcionalmente anfiartroses); e Sinoviais (com cápsula, cavidade e líquido sinovial, ex.: joelho e ombro, funcionalmente diartroses de ampla mobilidade).',
+        feedback:
+          'Resposta satisfatória. Você citou as três classes estruturais e deu o exemplo clássico da articulação sinovial.',
+        pontosAcertados: [
+          'Classificação em fibrosas, cartilagíneas e sinoviais',
+          'Reconhecimento da ampla mobilidade das sinoviais e presença de líquido sinovial',
+          'Exemplo do joelho',
+        ],
+        pontosFaltantes: [
+          'Terminologia funcional (sinartrose, anfiartrose e diartrose)',
+          'Exemplos anatômicos de articulações cartilagíneas (ex.: sínfises e discos intervertebrais)',
+        ],
+        respostaIdeal:
+          'Estruturalmente dividem-se em: Fibrosas (unidas por colágeno, ex.: suturas do crânio, funcionalmente sinartroses); Cartilagíneas (unidas por cartilagem, ex.: sínfise púbica e discos intervertebrais, funcionalmente anfiartroses); e Sinoviais (com cápsula, cavidade e líquido sinovial, ex.: joelho e ombro, funcionalmente diartroses de ampla mobilidade).',
       },
       timestamp: '14:12',
     },
@@ -157,6 +200,8 @@ export function App() {
   const [mostrarResumoManual, setMostrarResumoManual] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const newQuestionRef = useRef<HTMLDivElement>(null);
+  const [questionToScrollId, setQuestionToScrollId] = useState<string | null>(null);
 
   // Sempre que o usuário logado muda (login, logout ou troca de conta), zera
   // o estado local e recarrega as sessions do banco do usuário atual — evita
@@ -198,6 +243,13 @@ export function App() {
 
   const t = TRANSLATIONS[lang];
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+
+  useEffect(() => {
+    if (!questionToScrollId || !newQuestionRef.current) return;
+
+    newQuestionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setQuestionToScrollId(null);
+  }, [questionToScrollId, activeSession?.messages.length]);
 
   // uma sessão só existe a partir de um PDF; sem ele a única ação possível é anexar
   const hasPdf = Boolean(activeSession?.pdfName);
@@ -423,6 +475,7 @@ export function App() {
       const perguntas = await apiService.gerarMaisPerguntas(sessionId, quantidade, lang);
       const questionMessages = await apiService.inserirMensagensDePerguntas(sessionId, user.id, perguntas);
 
+      setQuestionToScrollId(String(perguntas[0].id));
       setSessions((prev) =>
         prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, ...questionMessages] } : s)),
       );
@@ -504,7 +557,10 @@ export function App() {
               {activeSession.messages.map((msg) => (
                 <div key={msg.id} className="w-full">
                   {msg.type === 'question' && msg.pergunta ? (
-                    <div className="flex justify-start pt-1">
+                    <div
+                      ref={msg.pergunta.id === questionToScrollId ? newQuestionRef : undefined}
+                      className="flex justify-start pt-1"
+                    >
                       <QuestionCard
                         pergunta={msg.pergunta}
                         lang={lang}

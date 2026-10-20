@@ -99,8 +99,7 @@ Deno.serve(async (req) => {
     // barrada pelo índice sessions_user_title_uniq (23505).
     let session;
     for (let tentativa = 0; ; tentativa++) {
-      const { data: titulo, error: tituloError } = await supabase
-        .rpc('unique_session_title', { p_base: tituloBase });
+      const { data: titulo, error: tituloError } = await supabase.rpc('unique_session_title', { p_base: tituloBase });
       if (tituloError) throw tituloError;
 
       const { data, error } = await supabase
@@ -119,7 +118,7 @@ Deno.serve(async (req) => {
     const pdfStoragePath = `${userId}/${session.id}/${pdfName}`;
     const { error: uploadError } = await supabase.storage
       .from('pdfs')
-      .upload(pdfStoragePath, bytes, { contentType: 'application/pdf', upsert: true });
+      .upload(pdfStoragePath, bytes, { contentType: 'application/pdf' });
     if (uploadError) throw uploadError;
 
     await supabase.from('sessions').update({ pdf_storage_path: pdfStoragePath }).eq('id', session.id);
@@ -146,14 +145,16 @@ Deno.serve(async (req) => {
         title: session.title,
         pdfName,
         // o RETURNING do insert não garante ordem; a UI numera e escolhe a 1ª por aqui
-        perguntas: [...questionRows].sort((a, b) => a.ordem - b.ordem).map((q) => ({
-          id: q.id,
-          ordem: q.ordem,
-          enunciado: q.enunciado,
-          respostaEsperada: q.resposta_esperada,
-          topicosChave: q.topicos_chave,
-          dificuldade: q.dificuldade,
-        })),
+        perguntas: [...questionRows]
+          .sort((a, b) => a.ordem - b.ordem)
+          .map((q) => ({
+            id: q.id,
+            ordem: q.ordem,
+            enunciado: q.enunciado,
+            respostaEsperada: q.resposta_esperada,
+            topicosChave: q.topicos_chave,
+            dificuldade: q.dificuldade,
+          })),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
