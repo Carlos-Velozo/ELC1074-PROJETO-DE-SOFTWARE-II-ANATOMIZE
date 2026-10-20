@@ -29,6 +29,17 @@ export interface EvaluationData {
   respostaIdeal: string;
 }
 
+export interface SessionSummaryStats {
+  totalPerguntas: number;
+  totalRespondidas: number;
+  acertos: number;
+  erros: number;
+  notaMedia: number;
+  pontosFaltantes: string[];
+  pontosAcertados: string[];
+  isCompleto: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
@@ -156,6 +167,20 @@ export const TRANSLATIONS = {
     authToggleToSignup: 'Não tem conta? Cadastre-se',
     authToggleToLogin: 'Já tem conta? Entrar',
     authSignupSuccess: 'Conta criada! Você já pode fazer login.',
+    sessionSummaryTitle: 'Resumo da Sessão',
+    sessionSummarySubtitle: 'Você concluiu todas as perguntas desta rodada! Veja o resumo do seu desempenho:',
+    averageScore: 'Nota média',
+    correctCount: 'Acertos',
+    incorrectCount: 'Erros',
+    completionRate: 'Perguntas respondidas',
+    summaryPointsMissing: 'Pontos a melhorar',
+    summaryPointsMissingDesc: 'Revise estes conceitos no material para fixar o conteúdo:',
+    summaryPointsCorrect: 'Conceitos dominados',
+    summaryPointsCorrectDesc: 'Você demonstrou domínio nestes tópicos:',
+    noPointsMissing: 'Excelente aproveitamento! Nenhum ponto crítico faltante foi identificado nesta sessão.',
+    viewSummary: 'Ver resumo da sessão',
+    hideSummary: 'Ocultar resumo',
+    sessionCompletedBadge: 'RODADA CONCLUÍDA',
   },
   ES: {
     appName: 'Anatomize',
@@ -224,5 +249,19 @@ export const TRANSLATIONS = {
     authToggleToSignup: '¿No tienes cuenta? Regístrate',
     authToggleToLogin: '¿Ya tienes cuenta? Entrar',
     authSignupSuccess: '¡Cuenta creada! Ya puedes iniciar sesión.',
+    sessionSummaryTitle: 'Resumen de la Sesión',
+    sessionSummarySubtitle: '¡Completaste todas las preguntas de esta ronda! Mira el resumen de tu desempeño:',
+    averageScore: 'Calificación promedio',
+    correctCount: 'Aciertos',
+    incorrectCount: 'Errores',
+    completionRate: 'Preguntas respondidas',
+    summaryPointsMissing: 'Puntos a mejorar',
+    summaryPointsMissingDesc: 'Revisa estos conceptos en el material para afianzar el contenido:',
+    summaryPointsCorrect: 'Conceptos dominados',
+    summaryPointsCorrectDesc: 'Demostraste dominio en estos tópicos:',
+    noPointsMissing: '¡Excelente rendimiento! No se identificaron puntos críticos pendientes en esta sesión.',
+    viewSummary: 'Ver resumen de la sesión',
+    hideSummary: 'Ocultar resumen',
+    sessionCompletedBadge: 'RONDA COMPLETADA',
   },
 };

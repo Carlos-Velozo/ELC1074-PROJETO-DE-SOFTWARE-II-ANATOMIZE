@@ -6,10 +6,11 @@ import { QuestionCard } from './components/QuestionCard';
 import { ChatInputBar } from './components/ChatInputBar';
 import { PdfDropzone } from './components/PdfDropzone';
 import { GenerateMoreQuestions } from './components/GenerateMoreQuestions';
+import { SessionSummaryCard } from './components/SessionSummaryCard';
 import { HelpModal } from './components/HelpModal';
 import { AuthScreen } from './components/AuthScreen';
 import { TRANSLATIONS } from './types';
-import type { StudySession, Language, Pergunta } from './types';
+import type { StudySession, Language, Pergunta, SessionSummaryStats } from './types';
 import { apiService, traduzirErroApi } from './services/api';
 import { useAuth } from './hooks/useAuth';
 
@@ -36,6 +37,7 @@ export function App() {
   const [processingStatus, setProcessingStatus] = useState<string>('');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [mostrarResumoManual, setMostrarResumoManual] = useState(false);
 
   // Sempre que o usuário logado muda (login, logout ou troca de conta), zera
   // o estado local e recarrega as sessions do banco do usuário atual — evita
@@ -74,6 +76,63 @@ export function App() {
   // uma sessão só existe a partir de um PDF; sem ele a única ação possível é anexar
   const hasPdf = Boolean(activeSession?.pdfName);
 
+  // Métricas agregadas da sessão para o resumo ao fim das perguntas
+  const summaryStats: SessionSummaryStats | null = (() => {
+    if (!activeSession) return null;
+    const questions = activeSession.messages.filter((m) => m.type === 'question' && m.pergunta);
+    const evaluations = activeSession.messages
+      .filter((m) => m.type === 'evaluation' && m.evaluation)
+      .map((m) => m.evaluation!);
+
+    if (questions.length === 0 || evaluations.length === 0) return null;
+
+    const totalPerguntas = questions.length;
+    const totalRespondidas = evaluations.length;
+    const acertos = evaluations.filter((e) => e.correta || e.nota >= 7.0).length;
+    const erros = totalRespondidas - acertos;
+    const somaNotas = evaluations.reduce((acc, e) => acc + (Number(e.nota) || 0), 0);
+    const notaMedia = totalRespondidas > 0 ? somaNotas / totalRespondidas : 0;
+
+    const pontosFaltantesSet = new Set<string>();
+    const pontosFaltantes: string[] = [];
+    for (const e of evaluations) {
+      for (const ponto of e.pontosFaltantes || []) {
+        const limpo = ponto.trim();
+        const chave = limpo.toLowerCase();
+        if (limpo && !pontosFaltantesSet.has(chave)) {
+          pontosFaltantesSet.add(chave);
+          pontosFaltantes.push(limpo);
+        }
+      }
+    }
+
+    const pontosAcertadosSet = new Set<string>();
+    const pontosAcertados: string[] = [];
+    for (const e of evaluations) {
+      for (const ponto of e.pontosAcertados || []) {
+        const limpo = ponto.trim();
+        const chave = limpo.toLowerCase();
+        if (limpo && !pontosAcertadosSet.has(chave)) {
+          pontosAcertadosSet.add(chave);
+          pontosAcertados.push(limpo);
+        }
+      }
+    }
+
+    const isCompleto = totalRespondidas >= totalPerguntas;
+
+    return {
+      totalPerguntas,
+      totalRespondidas,
+      acertos,
+      erros,
+      notaMedia,
+      pontosFaltantes,
+      pontosAcertados,
+      isCompleto,
+    };
+  })();
+
   const toggleLanguage = () => {
     setLang((prev) => {
       const proximo = prev === 'PT' ? 'ES' : 'PT';
@@ -88,6 +147,7 @@ export function App() {
 
   const handleSelectSession = (id: string) => {
     setActiveSessionId(id);
+    setMostrarResumoManual(false);
 
     if (loadedMessagesSessionIds.current.has(id)) return;
     loadedMessagesSessionIds.current.add(id);
@@ -108,6 +168,7 @@ export function App() {
   const handleNewStudy = () => {
     setActiveSessionId(null);
     setErrorBanner(null);
+    setMostrarResumoManual(false);
   };
 
   const handleRenameSession = async (id: string, title: string) => {
@@ -331,6 +392,30 @@ export function App() {
                 <div className="flex items-center gap-3 text-zinc-600 text-sm italic pl-2 bg-emerald-50/60 border border-emerald-100/80 rounded-xl p-3 max-w-md">
                   <Sparkles className="w-4 h-4 text-emerald-600 animate-spin" />
                   <span>{processingStatus || t.processingAudio}</span>
+                </div>
+              )}
+
+              {/* Resumo da sessão: exibido automaticamente ao terminar as perguntas da rodada */}
+              {summaryStats && (summaryStats.isCompleto || mostrarResumoManual) && (
+                <div className="pt-2">
+                  <SessionSummaryCard stats={summaryStats} lang={lang} />
+                </div>
+              )}
+
+              {/* Botão para ver/ocultar resumo parcial antes de terminar todas as perguntas */}
+              {summaryStats && !summaryStats.isCompleto && (
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setMostrarResumoManual((prev) => !prev)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-xs font-medium text-zinc-600 transition-colors cursor-pointer"
+                  >
+                    <span>
+                      {mostrarResumoManual
+                        ? t.hideSummary
+                        : `${t.viewSummary} (${summaryStats.totalRespondidas}/${summaryStats.totalPerguntas})`}
+                    </span>
+                  </button>
                 </div>
               )}
 
