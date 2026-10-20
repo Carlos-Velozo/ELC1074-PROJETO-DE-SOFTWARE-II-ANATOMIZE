@@ -25,7 +25,7 @@ export function HelpModal({ isOpen, onClose, lang }: HelpModalProps) {
           <button 
             onClick={onClose}
             className="p-2 -mr-2 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-full transition-colors"
-            aria-label="Fechar"
+            aria-label={t.close}
           >
             <X className="w-5 h-5" />
           </button>

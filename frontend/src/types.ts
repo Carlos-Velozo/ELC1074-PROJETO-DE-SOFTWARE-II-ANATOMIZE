@@ -78,6 +78,8 @@ export const ERROR_MESSAGES: Record<Language, Record<string, string>> = {
     IA_MODELO_INDISPONIVEL: 'O modelo de IA configurado não está disponível no momento. Avise a equipe.',
     IA_AUTENTICACAO: 'Falha de autenticação com o serviço de IA. Avise a equipe para verificar a chave de API.',
     IA_INDISPONIVEL: 'O serviço de IA está indisponível no momento. Tente novamente em instantes.',
+    AUDIO_INVALIDO: 'O áudio está vazio ou é grande demais. Grave uma resposta mais curta e tente de novo.',
+    TRANSCRICAO_VAZIA: 'Não foi possível entender o áudio. Tente gravar novamente.',
     FALHA_INESPERADA: 'Não foi possível processar a solicitação agora. Tente novamente em instantes.',
   },
   ES: {
@@ -95,13 +97,55 @@ export const ERROR_MESSAGES: Record<Language, Record<string, string>> = {
     IA_MODELO_INDISPONIVEL: 'El modelo de IA configurado no está disponible en este momento. Avisa al equipo.',
     IA_AUTENTICACAO: 'Fallo de autenticación con el servicio de IA. Avisa al equipo para revisar la clave de API.',
     IA_INDISPONIVEL: 'El servicio de IA no está disponible en este momento. Inténtalo en unos instantes.',
+    AUDIO_INVALIDO: 'El audio está vacío o es demasiado grande. Graba una respuesta más corta e inténtalo de nuevo.',
+    TRANSCRICAO_VAZIA: 'No se pudo entender el audio. Intenta grabar de nuevo.',
     FALHA_INESPERADA: 'No se pudo procesar la solicitud ahora. Inténtalo en unos instantes.',
   },
 };
 
-export const TRANSLATIONS = {
+// O Supabase Auth devolve as mensagens em inglês; o code é estável e a frase vem daqui.
+// A chave GENERICO cobre qualquer code que não esteja mapeado.
+export const AUTH_ERROR_MESSAGES: Record<Language, Record<string, string>> = {
   PT: {
+    invalid_credentials: 'E-mail ou senha incorretos.',
+    user_already_exists: 'Já existe uma conta com este e-mail.',
+    email_exists: 'Já existe uma conta com este e-mail.',
+    weak_password: 'A senha é fraca demais. Use pelo menos 6 caracteres.',
+    email_not_confirmed: 'Confirme seu e-mail antes de entrar.',
+    email_address_invalid: 'O e-mail informado não é válido.',
+    over_request_rate_limit: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+    over_email_send_rate_limit: 'Muitos e-mails enviados. Aguarde alguns minutos e tente novamente.',
+    signup_disabled: 'O cadastro de novas contas está desativado.',
+    network_error: 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.',
+    GENERICO: 'Não foi possível autenticar agora. Tente novamente em instantes.',
+  },
+  ES: {
+    invalid_credentials: 'Correo o contraseña incorrectos.',
+    user_already_exists: 'Ya existe una cuenta con este correo.',
+    email_exists: 'Ya existe una cuenta con este correo.',
+    weak_password: 'La contraseña es demasiado débil. Usa al menos 6 caracteres.',
+    email_not_confirmed: 'Confirma tu correo antes de entrar.',
+    email_address_invalid: 'El correo ingresado no es válido.',
+    over_request_rate_limit: 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.',
+    over_email_send_rate_limit: 'Demasiados correos enviados. Espera unos minutos e inténtalo de nuevo.',
+    signup_disabled: 'El registro de nuevas cuentas está desactivado.',
+    network_error: 'No se pudo conectar al servidor. Revisa tu internet e inténtalo de nuevo.',
+    GENERICO: 'No se pudo autenticar ahora. Inténtalo en unos instantes.',
+  },
+};
+
+// O espanhol é tipado a partir do português: chave faltando ou sobrando em
+// qualquer um dos dois idiomas quebra o `tsc`, em vez de aparecer em branco na tela.
+function traduzir<T extends Record<string, string>>(pt: T, es: Record<keyof T, string>) {
+  return { PT: pt, ES: es };
+}
+
+export const TRANSLATIONS = traduzir(
+  {
     appName: 'Anatomize',
+    documentTitle: 'Anatomize - Estudo de Anatomia Veterinária',
+    close: 'Fechar',
+    micPermissionDenied: 'Não foi possível acessar o microfone. Verifique as permissões no navegador.',
     newStudy: 'Novo Estudo',
     searchChat: 'Buscar Conversa',
     history: 'HISTÓRICO',
@@ -182,8 +226,11 @@ export const TRANSLATIONS = {
     hideSummary: 'Ocultar resumo',
     sessionCompletedBadge: 'RODADA CONCLUÍDA',
   },
-  ES: {
+  {
     appName: 'Anatomize',
+    documentTitle: 'Anatomize - Estudio de Anatomía Veterinaria',
+    close: 'Cerrar',
+    micPermissionDenied: 'No se pudo acceder al micrófono. Revisa los permisos del navegador.',
     newStudy: 'Nuevo Estudio',
     searchChat: 'Buscar Conversación',
     history: 'HISTORIAL',
@@ -264,4 +311,4 @@ export const TRANSLATIONS = {
     hideSummary: 'Ocultar resumen',
     sessionCompletedBadge: 'RONDA COMPLETADA',
   },
-};
+);

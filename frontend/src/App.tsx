@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Menu, Globe, Sparkles, AlertTriangle, X } from 'lucide-react';
+import { Menu, Sparkles, AlertTriangle, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { EvaluationCard } from './components/EvaluationCard';
 import { QuestionCard } from './components/QuestionCard';
@@ -9,22 +9,12 @@ import { GenerateMoreQuestions } from './components/GenerateMoreQuestions';
 import { SessionSummaryCard } from './components/SessionSummaryCard';
 import { HelpModal } from './components/HelpModal';
 import { AuthScreen } from './components/AuthScreen';
+import { LanguageToggle } from './components/LanguageToggle';
 import { TRANSLATIONS } from './types';
 import type { StudySession, Language, Pergunta, SessionSummaryStats } from './types';
 import { apiService, traduzirErroApi } from './services/api';
+import { LOCALES, lerIdiomaInicial, salvarIdioma } from './services/idioma';
 import { useAuth } from './hooks/useAuth';
-
-const LANG_STORAGE_KEY = 'anatomize:lang';
-
-// o idioma também decide em que língua a IA gera perguntas e dá feedback, então
-// vale a pena não perdê-lo a cada reload
-function lerIdiomaSalvo(): Language {
-  try {
-    return localStorage.getItem(LANG_STORAGE_KEY) === 'ES' ? 'ES' : 'PT';
-  } catch {
-    return 'PT';
-  }
-}
 
 const MOCK_PREVIEW_SESSION: StudySession = {
   id: 'preview-session-1',
@@ -187,7 +177,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
 const isPreviewMode = typeof window !== 'undefined' && window.location.search.includes('preview=summary');
 
 export function App() {
-  const [lang, setLang] = useState<Language>(lerIdiomaSalvo);
+  const [lang, setLang] = useState<Language>(lerIdiomaInicial);
   const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const [sessions, setSessions] = useState<StudySession[]>(isPreviewMode ? [MOCK_PREVIEW_SESSION] : []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(isPreviewMode ? MOCK_PREVIEW_SESSION.id : null);
@@ -323,16 +313,18 @@ export function App() {
     }
   }, [summaryStats?.isCompleto]);
 
+  // <html lang> e título acompanham o idioma: senão o navegador do celular, vendo
+  // lang="en" numa página em espanhol, oferece traduzi-la por conta própria
+  useEffect(() => {
+    document.documentElement.lang = LOCALES[lang];
+    document.title = TRANSLATIONS[lang].documentTitle;
+  }, [lang]);
+
+  // só a escolha manual é gravada; o idioma detectado do navegador não vira preferência
   const toggleLanguage = () => {
-    setLang((prev) => {
-      const proximo = prev === 'PT' ? 'ES' : 'PT';
-      try {
-        localStorage.setItem(LANG_STORAGE_KEY, proximo);
-      } catch {
-        // navegador sem storage (aba anônima, cookies bloqueados): só não persiste
-      }
-      return proximo;
-    });
+    const proximo: Language = lang === 'PT' ? 'ES' : 'PT';
+    setLang(proximo);
+    salvarIdioma(proximo);
   };
 
   const handleSelectSession = (id: string) => {
@@ -418,7 +410,7 @@ export function App() {
 
   const handleTranscribeAudio = async (audioBlob: Blob) => {
     setErrorBanner(null);
-    return apiService.transcreverAudio(audioBlob);
+    return apiService.transcreverAudio(audioBlob, lang);
   };
 
   const handleTranscriptionError = (error: unknown) => {
@@ -539,15 +531,8 @@ export function App() {
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleLanguage}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 hover:border-zinc-400 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors shadow-2xs cursor-pointer"
-              title={t.changeLanguage}
-            >
-              <Globe className="w-3.5 h-3.5 text-zinc-500" />
-              <span>{lang === 'PT' ? 'PT / ES' : 'ES / PT'}</span>
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <LanguageToggle lang={lang} onToggle={toggleLanguage} />
           </div>
         </header>
 
