@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import { Award, CheckCircle2, TrendingUp, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
 import { TRANSLATIONS } from '../types';
 import type { Language, SessionSummaryStats } from '../types';
+import { formatarNota } from '../services/idioma';
 
 interface SessionSummaryCardProps {
   stats: SessionSummaryStats;
@@ -75,7 +76,7 @@ export const SessionSummaryCard: FC<SessionSummaryCardProps> = ({ stats, lang })
                       isAprovado ? 'text-emerald-700' : 'text-amber-700'
                     }`}
                   >
-                    {stats.notaMedia.toFixed(1)}
+                    {formatarNota(stats.notaMedia, lang)}
                   </span>
                   <span className="text-xs text-zinc-400 font-medium">/ 10</span>
                 </div>

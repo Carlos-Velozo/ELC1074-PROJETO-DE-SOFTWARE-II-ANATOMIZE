@@ -6,6 +6,15 @@ export function ehIdioma(valor: unknown): valor is Idioma {
   return valor === 'PT' || valor === 'ES';
 }
 
+// O português continua sendo o padrão para não quebrar clientes antigos, mas o aviso
+// no log deixa visível quando um cliente deixa de mandar o idioma, em vez de a
+// resposta sair em português sem ninguém perceber.
+export function idiomaDaRequisicao(valor: unknown, funcao: string): Idioma {
+  if (ehIdioma(valor)) return valor;
+  console.warn(`${funcao}: lang ausente ou inválido (${String(valor)}); usando PT`);
+  return 'PT';
+}
+
 // A coluna questions.dificuldade tem CHECK nos valores em português e os schemas
 // JSON usam o mesmo enum, então o rótulo é traduzido só na exibição — o modelo
 // precisa ser avisado para não traduzir esse campo junto com o resto.
@@ -22,6 +31,60 @@ const INSTRUCAO_IDIOMA_AVALIACAO: Record<Idioma, string> = {
   PT: 'Escreva o feedback, os pontos e a resposta ideal em português do Brasil.',
   ES: 'Escribe el feedback, los puntos y la respuesta ideal en español.',
 };
+
+// O contexto do PDF (e a resposta esperada, nas perguntas antigas) costuma estar em
+// português e é a última coisa que o modelo lê, o que o puxa de volta para o português.
+// Por isso a instrução se repete depois dele, já no idioma de destino.
+const LEMBRETE_IDIOMA_GERACAO: Record<Idioma, string> = {
+  PT: 'Lembrete final: escreva enunciados, respostas esperadas e tópicos-chave em português do Brasil, mesmo que o contexto esteja em outro idioma.',
+  ES: 'Recordatorio final: escribe enunciados, respuestas esperadas y tópicos clave en español, aunque el contexto esté en portugués. No copies el idioma del material. Solo "dificuldade" permanece en portugués.',
+};
+
+const LEMBRETE_IDIOMA_AVALIACAO: Record<Idioma, string> = {
+  PT: 'Lembrete final: escreva o feedback, os pontos e a resposta ideal em português do Brasil, mesmo que a pergunta, a resposta esperada ou a resposta do aluno estejam em outro idioma.',
+  ES: 'Recordatorio final: escribe el feedback, los puntos y la respuesta ideal en español, aunque la pregunta, la respuesta esperada o la respuesta del alumno estén en portugués. No copies el idioma del material.',
+};
+
+// Sufixo das novas tentativas: sem ele, o texto de retry em português reabre a porta
+// para o modelo responder em português.
+export function sufixoTentativaGeracao(tentativa: number, quantidade: number, idioma: Idioma): string {
+  return idioma === 'ES'
+    ? `\n\nEste es el intento ${tentativa}. La respuesta anterior no fue válida. Genera un JSON válido con exactamente ${quantidade} preguntas, escritas en español.`
+    : `\n\nEsta é a tentativa ${tentativa}. A resposta anterior foi inválida. Gere um JSON válido com exatamente ${quantidade} perguntas, escritas em português do Brasil.`;
+}
+
+export function sufixoTentativaAvaliacao(tentativa: number, idioma: Idioma): string {
+  return idioma === 'ES'
+    ? `\n\nEste es el intento ${tentativa}. La respuesta anterior no formó un JSON válido. Responde de nuevo respetando el esquema y escribiendo en español.`
+    : `\n\nEsta é a tentativa ${tentativa}. A resposta anterior não formou um JSON válido. Responda novamente respeitando o esquema e escrevendo em português do Brasil.`;
+}
+
+// O áudio é transcrito, não traduzido: a fala em espanhol precisa chegar em espanhol
+// à avaliação. Sem idioma válido, o modelo só segue o que ouviu.
+const NOME_IDIOMA: Record<Idioma, string> = {
+  PT: 'português do Brasil',
+  ES: 'espanhol',
+};
+
+export function montarPromptTranscricao(idioma?: Idioma): string {
+  const esperado = idioma
+    ? `O idioma esperado do áudio é ${NOME_IDIOMA[idioma]}; use essa informação só para desambiguar palavras. Se a pessoa falar outro idioma, mantenha o idioma falado.`
+    : '';
+  const idiomaResumo = idioma ? NOME_IDIOMA[idioma] : 'o mesmo idioma da fala';
+
+  return `Ouça este áudio e forneça uma resposta em JSON com esta exata estrutura:
+{
+  "transcription": "A transcrição completa e exata do áudio",
+  "summary": "Um resumo conciso do que a pessoa está comunicando",
+  "context": "A interpretação da mensagem, significado e intenção por trás das palavras"
+}
+
+Em "transcription", escreva literalmente o que foi dito, no idioma em que foi dito. Nunca traduza.
+${esperado}
+Escreva "summary" e "context" em ${idiomaResumo}.
+
+Responda APENAS com o JSON, sem explicações adicionais.`;
+}
 
 // Portado de src/gerador_perguntas.py::montar_prompt
 export function montarPrompt(
@@ -60,6 +123,8 @@ ${blocoExistentes}
 <contexto>
 ${contexto}
 </contexto>
+
+${LEMBRETE_IDIOMA_GERACAO[idioma]}
 `.trim();
 }
 
@@ -106,5 +171,7 @@ ${topicos}
 <resposta_do_aluno>
 ${respostaAluno}
 </resposta_do_aluno>
+
+${LEMBRETE_IDIOMA_AVALIACAO[idioma]}
 `.trim();
 }

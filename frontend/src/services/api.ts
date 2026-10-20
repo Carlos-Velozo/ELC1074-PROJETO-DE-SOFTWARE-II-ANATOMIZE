@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES } from '../types';
+import { AUTH_ERROR_MESSAGES, ERROR_MESSAGES } from '../types';
 import type { ChatMessage, EvaluationData, Language, Pergunta, StudySession } from '../types';
 import { supabase } from './supabaseClient';
 import { FunctionsHttpError } from '@supabase/supabase-js';
@@ -30,17 +30,30 @@ async function extrairErro(error: unknown): Promise<ErroApi> {
 
 /**
  * Texto a exibir para o aluno. O servidor manda um código estável (ele não sabe
- * o idioma escolhido); a frase vem daqui. Erros que não têm código — os do
- * PostgREST, por exemplo — caem na própria mensagem.
+ * o idioma escolhido); a frase vem daqui. Erros sem código conhecido — os do
+ * PostgREST, da rede ou do gateway — chegam em inglês ou em português, então
+ * vão para o console e o aluno vê a mensagem genérica no idioma dele.
  */
 export function traduzirErroApi(erro: unknown, lang: Language): string {
   if (erro instanceof ErroApi && erro.code) {
     const traduzido = ERROR_MESSAGES[lang][erro.code];
     if (traduzido) return traduzido;
   }
-  if (erro instanceof Error && erro.message) return erro.message;
+  console.error('Erro sem tradução:', erro);
 
   return ERROR_MESSAGES[lang].FALHA_INESPERADA;
+}
+
+/** mesma ideia de traduzirErroApi, para os erros do Supabase Auth (que trazem `code`) */
+export function traduzirErroAuth(erro: unknown, lang: Language): string {
+  const mensagens = AUTH_ERROR_MESSAGES[lang];
+  const { code, name } = (erro ?? {}) as { code?: unknown; name?: unknown };
+
+  if (typeof code === 'string' && mensagens[code]) return mensagens[code];
+  if (name === 'AuthRetryableFetchError') return mensagens.network_error;
+  console.error('Erro de autenticação sem tradução:', erro);
+
+  return mensagens.GENERICO;
 }
 
 function formatarHorario(isoString: string): string {
@@ -84,16 +97,18 @@ function mapearAvaliacao(row: {
 }
 
 export const apiService = {
-  async transcreverAudio(file: Blob): Promise<string> {
+  // o idioma diz ao Gemini que língua esperar: sem ele a fala em espanhol era traduzida
+  async transcreverAudio(file: Blob, lang: Language): Promise<string> {
     const formData = new FormData();
     const extensao = file.type.includes('mp4') ? 'm4a' : file.type.includes('ogg') ? 'ogg' : 'webm';
     formData.append('file', file, `resposta.${extensao}`);
+    formData.append('lang', lang);
 
     const { data, error } = await supabase.functions.invoke('transcribe-audio', { body: formData });
     if (error) throw await extrairErro(error);
 
     if (typeof data?.transcription !== 'string' || !data.transcription.trim()) {
-      throw new ErroApi('A transcrição retornou vazia. Tente gravar novamente.');
+      throw new ErroApi('A transcrição retornou vazia.', 'TRANSCRICAO_VAZIA');
     }
 
     return data.transcription.trim();

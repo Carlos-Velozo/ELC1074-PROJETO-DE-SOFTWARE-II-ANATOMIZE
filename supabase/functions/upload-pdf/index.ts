@@ -2,7 +2,7 @@ import { extractText, getDocumentProxy } from 'npm:unpdf@0.12.1';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 import { createUserClient } from '../_shared/supabaseClient.ts';
 import { gerarPerguntas } from '../_shared/ai-provider.ts';
-import { ehIdioma } from '../_shared/prompts.ts';
+import { idiomaDaRequisicao } from '../_shared/prompts.ts';
 import { consumirCotaIA } from '../_shared/rate-limit.ts';
 import { ErroIA, traduzirErroIA, jsonError } from '../_shared/errors.ts';
 
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const file = form.get('file');
     const quantidade = Number(form.get('quantidade') ?? 3);
     const langRecebido = form.get('lang');
-    const idioma = ehIdioma(langRecebido) ? langRecebido : 'PT';
+    const idioma = idiomaDaRequisicao(langRecebido, 'upload-pdf');
 
     if (!(file instanceof File) || file.type !== 'application/pdf') {
       return jsonError('PDF_INVALIDO', 400);
