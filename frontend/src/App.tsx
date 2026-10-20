@@ -535,7 +535,7 @@ export function App() {
 
               {/* Resumo da sessão: exibido automaticamente ao terminar as perguntas da rodada */}
               {summaryStats && (summaryStats.isCompleto || mostrarResumoManual) && (
-                <div ref={summaryRef} className="pt-2">
+                <div ref={summaryRef} className="flex justify-start pt-2">
                   <SessionSummaryCard stats={summaryStats} lang={lang} />
                 </div>
               )}
