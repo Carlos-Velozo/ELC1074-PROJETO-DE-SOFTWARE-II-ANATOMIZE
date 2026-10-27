@@ -78,6 +78,10 @@ export function agruparPorPergunta(messages: ChatMessage[]): { grupos: GrupoPerg
     }
   }
 
+  // as perguntas de um lote são inseridas juntas e dividem o mesmo created_at, então a
+  // ordem em que chegam do banco é arbitrária; a numeração do servidor (ordem) manda
+  grupos.sort((a, b) => a.pergunta.ordem - b.pergunta.ordem);
+
   const orfas: ChatMessage[] = [];
   for (const msg of messages) {
     if (msg.type === 'question') continue;
