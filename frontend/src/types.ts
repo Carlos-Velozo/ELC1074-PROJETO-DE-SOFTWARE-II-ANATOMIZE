@@ -47,7 +47,46 @@ export interface ChatMessage {
   content?: string;
   pergunta?: Pergunta;
   evaluation?: EvaluationData;
+  /** pergunta a que a mensagem pertence: a própria (question) ou a respondida (text/evaluation) */
+  questionId?: string;
   timestamp: string;
+}
+
+/** id do bloco da pergunta no DOM; o trilho de navegação e o scroll automático usam o mesmo */
+export const idDoBlocoPergunta = (perguntaId: number | string) => `q-${perguntaId}`;
+
+export interface GrupoPergunta {
+  pergunta: Pergunta;
+  /** respostas do aluno e avaliações desta pergunta, em ordem cronológica */
+  respostas: ChatMessage[];
+}
+
+/**
+ * Agrupa o chat por pergunta: cada pergunta vem seguida das respostas e avaliações
+ * que apontam para ela. Mensagens sem pergunta correspondente (resposta cuja
+ * avaliação falhou, histórico antigo) vão em `orfas` para nunca sumirem da tela.
+ */
+export function agruparPorPergunta(messages: ChatMessage[]): { grupos: GrupoPergunta[]; orfas: ChatMessage[] } {
+  const grupos: GrupoPergunta[] = [];
+  const porId = new Map<string, GrupoPergunta>();
+
+  for (const msg of messages) {
+    if (msg.type === 'question' && msg.pergunta) {
+      const grupo: GrupoPergunta = { pergunta: msg.pergunta, respostas: [] };
+      grupos.push(grupo);
+      porId.set(String(msg.pergunta.id), grupo);
+    }
+  }
+
+  const orfas: ChatMessage[] = [];
+  for (const msg of messages) {
+    if (msg.type === 'question') continue;
+    const grupo = msg.questionId ? porId.get(msg.questionId) : undefined;
+    if (grupo) grupo.respostas.push(msg);
+    else orfas.push(msg);
+  }
+
+  return { grupos, orfas };
 }
 
 export interface StudySession {
@@ -225,6 +264,10 @@ export const TRANSLATIONS = traduzir(
     viewSummary: 'Ver resumo da sessão',
     hideSummary: 'Ocultar resumo',
     sessionCompletedBadge: 'RODADA CONCLUÍDA',
+    questionNavLabel: 'Navegar entre as perguntas',
+    questionNavAnswered: 'respondida',
+    questionNavPending: 'sem resposta',
+    questionNavCurrent: 'em resposta',
   },
   {
     appName: 'Anatomize',
@@ -310,5 +353,9 @@ export const TRANSLATIONS = traduzir(
     viewSummary: 'Ver resumen de la sesión',
     hideSummary: 'Ocultar resumen',
     sessionCompletedBadge: 'RONDA COMPLETADA',
+    questionNavLabel: 'Navegar entre las preguntas',
+    questionNavAnswered: 'respondida',
+    questionNavPending: 'sin respuesta',
+    questionNavCurrent: 'en respuesta',
   },
 );
