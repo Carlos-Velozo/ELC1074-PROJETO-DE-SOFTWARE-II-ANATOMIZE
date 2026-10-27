@@ -186,14 +186,28 @@ export const apiService = {
       content: row.content ?? undefined,
       pergunta: row.question ? mapearPergunta(row.question) : undefined,
       evaluation: row.evaluation ? mapearAvaliacao(row.evaluation) : undefined,
+      // avaliações antigas podem não ter question_id na mensagem; a linha de evaluations tem
+      questionId: row.question_id ?? row.evaluation?.question_id ?? undefined,
       timestamp: formatarHorario(row.created_at),
     }));
   },
 
-  async inserirMensagemTexto(sessionId: string, userId: string, content: string): Promise<ChatMessage> {
+  async inserirMensagemTexto(
+    sessionId: string,
+    userId: string,
+    questionId: string,
+    content: string,
+  ): Promise<ChatMessage> {
     const { data, error } = await supabase
       .from('chat_messages')
-      .insert({ session_id: sessionId, user_id: userId, sender: 'user', type: 'text', content })
+      .insert({
+        session_id: sessionId,
+        user_id: userId,
+        sender: 'user',
+        type: 'text',
+        content,
+        question_id: questionId,
+      })
       .select()
       .single();
     if (error) throw error;
@@ -203,6 +217,7 @@ export const apiService = {
       sender: 'user',
       type: 'text',
       content: data.content,
+      questionId,
       timestamp: formatarHorario(data.created_at),
     };
   },
@@ -227,6 +242,7 @@ export const apiService = {
       sender: 'assistant',
       type: 'question',
       pergunta: perguntas[idx],
+      questionId: String(perguntas[idx].id),
       timestamp: formatarHorario(row.created_at),
     }));
   },
@@ -234,6 +250,7 @@ export const apiService = {
   async inserirMensagemAvaliacao(
     sessionId: string,
     userId: string,
+    questionId: string,
     evaluationId: string,
     evaluation: EvaluationData,
   ): Promise<ChatMessage> {
@@ -245,6 +262,7 @@ export const apiService = {
         sender: 'assistant',
         type: 'evaluation',
         evaluation_id: evaluationId,
+        question_id: questionId,
       })
       .select()
       .single();
@@ -255,6 +273,7 @@ export const apiService = {
       sender: 'assistant',
       type: 'evaluation',
       evaluation,
+      questionId,
       timestamp: formatarHorario(data.created_at),
     };
   },
