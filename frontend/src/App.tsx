@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, Sparkles, AlertTriangle, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
-import { EvaluationCard } from './components/EvaluationCard';
-import { QuestionCard } from './components/QuestionCard';
+import { QuestionThread, RespostaMensagem } from './components/QuestionThread';
+import { QuestionRail } from './components/QuestionRail';
 import { ChatInputBar } from './components/ChatInputBar';
 import { PdfDropzone } from './components/PdfDropzone';
 import { GenerateMoreQuestions } from './components/GenerateMoreQuestions';
@@ -10,7 +10,7 @@ import { SessionSummaryCard } from './components/SessionSummaryCard';
 import { HelpModal } from './components/HelpModal';
 import { AuthScreen } from './components/AuthScreen';
 import { LanguageToggle } from './components/LanguageToggle';
-import { TRANSLATIONS } from './types';
+import { TRANSLATIONS, agruparPorPergunta } from './types';
 import type { StudySession, Language, Pergunta, SessionSummaryStats } from './types';
 import { apiService, traduzirErroApi } from './services/api';
 import { LOCALES, lerIdiomaInicial, salvarIdioma } from './services/idioma';
@@ -24,6 +24,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
   messages: [
     {
       id: 'msg-q1',
+      questionId: 'p-1',
       sender: 'assistant',
       type: 'question',
       pergunta: {
@@ -40,6 +41,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-a1',
+      questionId: 'p-1',
       sender: 'user',
       type: 'text',
       content:
@@ -48,6 +50,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-e1',
+      questionId: 'p-1',
       sender: 'assistant',
       type: 'evaluation',
       evaluation: {
@@ -70,6 +73,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-q2',
+      questionId: 'p-2',
       sender: 'assistant',
       type: 'question',
       pergunta: {
@@ -91,6 +95,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-a2',
+      questionId: 'p-2',
       sender: 'user',
       type: 'text',
       content:
@@ -99,6 +104,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-e2',
+      questionId: 'p-2',
       sender: 'assistant',
       type: 'evaluation',
       evaluation: {
@@ -121,6 +127,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-q3',
+      questionId: 'p-3',
       sender: 'assistant',
       type: 'question',
       pergunta: {
@@ -141,6 +148,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-a3',
+      questionId: 'p-3',
       sender: 'user',
       type: 'text',
       content:
@@ -149,6 +157,7 @@ const MOCK_PREVIEW_SESSION: StudySession = {
     },
     {
       id: 'msg-e3',
+      questionId: 'p-3',
       sender: 'assistant',
       type: 'evaluation',
       evaluation: {
@@ -190,7 +199,7 @@ export function App() {
   const [mostrarResumoManual, setMostrarResumoManual] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const newQuestionRef = useRef<HTMLDivElement>(null);
+  const newQuestionRef = useRef<HTMLElement>(null);
   const [questionToScrollId, setQuestionToScrollId] = useState<string | null>(null);
 
   // Sempre que o usuário logado muda (login, logout ou troca de conta), zera
@@ -233,6 +242,10 @@ export function App() {
 
   const t = TRANSLATIONS[lang];
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+  const { grupos, orfas } = useMemo(
+    () => agruparPorPergunta(activeSession?.messages ?? []),
+    [activeSession?.messages],
+  );
 
   useEffect(() => {
     if (!questionToScrollId || !newQuestionRef.current) return;
@@ -379,13 +392,19 @@ export function App() {
     setErrorBanner(null);
 
     try {
-      const userMessage = await apiService.inserirMensagemTexto(sessionId, user.id, text);
+      const userMessage = await apiService.inserirMensagemTexto(sessionId, user.id, questionId, text);
       setSessions((prev) =>
         prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, userMessage] } : s)),
       );
 
       const { evaluationId, ...evaluation } = await apiService.avaliarResposta(questionId, text, lang);
-      const evaluationMessage = await apiService.inserirMensagemAvaliacao(sessionId, user.id, evaluationId, evaluation);
+      const evaluationMessage = await apiService.inserirMensagemAvaliacao(
+        sessionId,
+        user.id,
+        questionId,
+        evaluationId,
+        evaluation,
+      );
 
       setSessions((prev) =>
         prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, evaluationMessage] } : s)),
@@ -536,35 +555,23 @@ export function App() {
           </div>
         </header>
 
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto pl-4 pr-10 md:pl-8 md:pr-14 py-6 space-y-6">
           {activeSession && activeSession.pdfName ? (
             <div className="max-w-3xl mx-auto space-y-6">
-              {activeSession.messages.map((msg) => (
-                <div key={msg.id} className="w-full">
-                  {msg.type === 'question' && msg.pergunta ? (
-                    <div
-                      ref={msg.pergunta.id === questionToScrollId ? newQuestionRef : undefined}
-                      className="flex justify-start pt-1"
-                    >
-                      <QuestionCard
-                        pergunta={msg.pergunta}
-                        lang={lang}
-                        isActive={activeSession?.currentQuestion?.id === msg.pergunta.id}
-                        onSelect={() => handleSelectQuestion(msg.pergunta!)}
-                      />
-                    </div>
-                  ) : msg.sender === 'user' ? (
-                    <div className="flex justify-end">
-                      <div className="max-w-xl bg-zinc-100/90 text-zinc-900 rounded-2xl rounded-tr-xs px-5 py-3 text-[15px] leading-relaxed shadow-2xs">
-                        {msg.content}
-                      </div>
-                    </div>
-                  ) : msg.type === 'evaluation' && msg.evaluation ? (
-                    <div className="flex justify-start pt-2">
-                      <EvaluationCard evaluation={msg.evaluation} lang={lang} />
-                    </div>
-                  ) : null}
-                </div>
+              {grupos.map((grupo) => (
+                <QuestionThread
+                  key={grupo.pergunta.id}
+                  grupo={grupo}
+                  lang={lang}
+                  isActive={activeSession.currentQuestion?.id === grupo.pergunta.id}
+                  onSelect={() => handleSelectQuestion(grupo.pergunta)}
+                  scrollRef={String(grupo.pergunta.id) === questionToScrollId ? newQuestionRef : undefined}
+                />
+              ))}
+
+              {/* respostas sem pergunta correspondente (ex.: avaliação que falhou) não somem */}
+              {orfas.map((msg) => (
+                <RespostaMensagem key={msg.id} msg={msg} lang={lang} />
               ))}
 
               {isProcessing && (
@@ -609,6 +616,15 @@ export function App() {
             />
           )}
         </div>
+
+        {activeSession?.pdfName && (
+          <QuestionRail
+            grupos={grupos}
+            currentQuestionId={activeSession.currentQuestion?.id}
+            containerRef={chatContainerRef}
+            lang={lang}
+          />
+        )}
 
         <div className="p-4 pt-2 shrink-0 bg-gradient-to-t from-white via-white to-transparent">
           {errorBanner && (
